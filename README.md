@@ -7,10 +7,11 @@
 ここを呼ぶ。**
 
 ```
-あなた「ゆっくり解説で、日本の年金制度の動画を10本作って」
-  → AI が create_yukkuri_videos_batch を呼ぶ
-  → MP4 が10本返る
-あなた「3本目、もう少しゆっくり喋らせて」
+あなた「ゆっくり解説で、日本の年金制度の動画を作って」
+  → AI が create_yukkuri_video を呼ぶ（数秒で jobId が返る）
+  → AI が get_job で音声合成とレンダー開始を待ち、get_render で MP4 の完成を待つ
+  → MP4 の URL が返る
+あなた「もう少しゆっくり喋らせて」
   → AI が update_lines を呼び直す
 ```
 
@@ -77,6 +78,26 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
   -H "Content-Type: application/json" \
   -d '{"title":"テスト","script":[{"speaker":"reimu","text":"こんにちは"},{"speaker":"marisa","text":"よろしくだぜ"}]}'
 ```
+
+これは同期の呼び出しで、音声合成とレンダー開始を待ってから返る（台本が長いと数十秒）。
+待たずに済ませるなら `Prefer: respond-async` を付ける。数秒で 202 と `jobId` / `projectId` が返る:
+
+```bash
+curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
+  -H "Authorization: Bearer $YUKKURIGEN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: my-first-video" \
+  -d '{"title":"テスト","script":[{"speaker":"reimu","text":"こんにちは"},{"speaker":"marisa","text":"よろしくだぜ"}]}'
+```
+
+`GET /api/v1/jobs/{jobId}` が `succeeded` になったら、`result.renderId` を
+`GET /api/v1/projects/{projectId}/render/{renderId}/progress` に渡して完成を待つ。
+`failed` なら `error.code` に理由が入り、クレジットは返金される。
+例外は、レンダーを起動したあとにジョブだけが失敗した場合（まれ）で、レンダーは課金されたまま
+動いていて返金されず、Idempotency-Key も空かない（同じ鍵で投げ直すと、起動済みのレンダーが 200 で
+返り、2本目は作られない）。`renderId` に `agent-{jobId}` を渡して進捗を見れば結果が分かる
+（`not_found` なら起動しておらず、返金される）。
 
 全項目の定義: https://app.yukkurigen.com/openapi.json
 

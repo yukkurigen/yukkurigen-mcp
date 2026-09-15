@@ -31,6 +31,7 @@
 | 台本を読み返す（行番号つき） | `get_project` | `GET /api/v1/projects/{id}` |
 | 指定した行だけ直す | `update_lines` | `PATCH /api/v1/projects/{id}/lines` |
 | 音声を作る（MP4の前に必須） | `generate_audio` | `POST /api/v1/projects/{id}/audio/generate` |
+| 非同期ジョブの状態取得 | `get_job` | `GET /api/v1/jobs/{jobId}` |
 | **焼く前に人へ見せる共有リンク** | `create_preview_link` | `POST /api/v1/projects/{id}/preview-link` |
 | YouTube へ投稿する | `upload_to_youtube` | `POST /api/v1/projects/{id}/upload` |
 | 投稿ジョブの状態 | `get_youtube_upload` | `GET /api/v1/projects/{id}/upload/{jobId}` |
@@ -67,6 +68,77 @@
 直接叩くときも本文は空 `{}` でよい。特定の行だけ作り直したいときだけ、
 `get_project` が返す行の id を `lineIds` に並べて `force: true` を付ける。
 
+### 非同期ジョブ（Prefer: respond-async）
+
+`generate_audio`（POST /audio/generate）、台本生成（POST /script/generate）、
+BGM 生成（POST /bgm/generate）、BGM パイプライン（POST /bgm/pipeline）は、
+`Prefer: respond-async` ヘッダを付けて呼ぶとサーバー側で非同期ジョブになる
+（環境変数 `JOBS_ENABLED=1` が必要）。
+
+```
+POST /api/v1/projects/{id}/audio/generate
+Prefer: respond-async
+```
+
+レスポンス（202）:
+```json
+{ "jobId": "...", "status": "queued", "pollUrl": "/api/v1/jobs/{jobId}" }
+```
+Header: `Preference-Applied: respond-async`
+
+`get_job` / `GET /api/v1/jobs/{jobId}` でポーリングする:
+- `status: "queued"` / `"running"` → まだ処理中
+- `status: "succeeded"` → `result` に完了データ（同期パスの 200 ボディと同じ形）
+- `status: "failed"` → `error.message` に理由
+
+MCP では `generate_audio` と `create_yukkuri_video`（mp4 / preview）のツールが自動的に
+この非同期パスを使い（JOBS_ENABLED=1 のとき）、jobId を返す。`get_job` ツールで追う。
+
+#### 台本→MP4 の一括生成もジョブで受け付ける
+
+`create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` / `"preview"` も、
+`Prefer: respond-async` を付けるとジョブになる（`JOBS_ENABLED=1` のとき）。
+`output:"draft"` は常に同期。**MCP の `create_yukkuri_video` は自分でこれを付ける**ので、
+MCP から使うときは何もしなくてよい。
+
+受け付けでは、同期と同じ門（認証・スコープ・プラン・レート上限・`callbackUrl`・
+クレジット）をその場で通す。残高不足・プラン不足・レート上限などは**数秒でその場に返り**、
+そのときプロジェクトもジョブも作られない。通ったらクレジットを押さえ、プロジェクトと
+台本を作ってから 202 を返す:
+
+```json
+{ "jobId": "...", "status": "queued", "pollUrl": "/api/v1/jobs/{jobId}", "projectId": "..." }
+```
+
+流れ（MCP）:
+
+    create_yukkuri_video { output:"mp4" }   # 数秒で jobId と projectId が返る
+    get_job { jobId }                       # succeeded まで待つ（音声合成とレンダー開始）
+    get_render { projectId, renderId }      # renderId は get_job の result.renderId
+
+- **202 には `renderId` が入らない。** `jobId` を `get_render` に渡さないこと。
+- `succeeded` は**レンダーの開始まで済んだ**という意味で、動画はまだ焼いている途中。
+  `result` は同期の 200 と同じ形（`projectId`・`renderId`・`status: "rendering"`）。
+- `failed` なら `error.code` に理由が入り（`missing_audio`・`too_many_concurrent_renders`・
+  `plan_required` など）、押さえたクレジットは**返金される**（反映まで少しかかることがある）。
+  例外は、**レンダーを起動したあとにジョブだけが失敗した**場合（まれ）。このときレンダーは
+  課金されたまま動いていて、返金されない。`get_render` に `projectId` と
+  `renderId: "agent-{jobId}"` を渡せば結果が分かる（`not_found` なら起動しておらず、返金される）。
+  MCP の `get_job` は本文でどちらかを案内する。
+- 同時に走らせられるレンダーの上限に当たっていると、ジョブは15分ほど空きを待ち、
+  それでも空かなければ `too_many_concurrent_renders` で失敗して返金される。
+- `callbackUrl` を渡したときは、202 に `callbackSecret` と `callbackSignatureHeader` が入る。
+  **ジョブの GET（`get_job`）には入らない**ので、この応答で控えること。
+- ジョブの受け付けには `Authorization: Bearer` が要る。スコープは `render:mp4` に加えて
+  `audio:generate` も要る。
+- 同じ `idempotencyKey` で投げ直すと、ジョブが処理中・成功済みなら**同じ jobId** が返り、
+  課金は起きない。失敗したジョブの鍵は空くので、理由を直してから同じ鍵でやり直せる。
+  ただし上の例外（起動後にジョブだけが失敗した）では鍵は空かず、同じ鍵で投げ直すと
+  起動済みのレンダーの `renderId` が 200 で返る（2本目は作られない）。
+- `Prefer` を付けない REST の呼び出しは同期のまま。ただしサーバの設定によっては、
+  同じ受け付けのあと一定時間だけ完了を待ち、終わらなければ `Preference-Applied` なしの
+  202 を返す。**202 が返りうるものとして扱うこと。**
+
 ### YouTube へ投稿する（消費なし）
 
 焼き上がったら `upload_to_youtube` で投稿できる。**ただし条件が3つある**:
@@ -90,14 +162,18 @@
 
 ### 応答が返らないときのために（重要）
 
-`create_yukkuri_video` の `mp4` / `preview` は、**音声合成とレンダー開始を
+`create_yukkuri_video` の `mp4` / `preview` を**同期で**呼ぶと、**音声合成とレンダー開始を
 待ってから返る**。10行の台本で45秒を超えることがあり、クライアントによっては
 そこで切れる。切れても**サーバ側では課金もレンダーも進んでいる**ので、
 何もせず投げ直すと二重に払うことになる。
 
-- **`idempotencyKey` を必ず付ける。** 同じ鍵で投げ直せば、最初の結果が返り
-  課金は起きない。処理中なら「進行中」と返るので少し待って同じ鍵で再試行する
-- タイムアウトが心配なら **`output:"draft"` で刻む**:
+- **ジョブで受け付けてもらう。** MCP の `create_yukkuri_video` はサーバがジョブを
+  使える設定（`JOBS_ENABLED=1`）のとき自分でそうするので、数秒で `jobId` が返る。
+  REST を直接叩くなら `Prefer: respond-async` を付ける（上の「非同期ジョブ」）
+- **`idempotencyKey` を必ず付ける。** 同じ鍵で投げ直せば、最初の結果（ジョブなら同じ
+  `jobId`）が返り課金は起きない。同期の処理中なら「進行中」と返るので少し待って
+  同じ鍵で再試行する
+- 段ごとに刻みたいなら **`output:"draft"` で刻む**:
 
       create_yukkuri_video { output:"draft" }   # 消費なし・数秒で返る
       generate_audio                            # 消費なし
@@ -145,7 +221,9 @@
    **返るのは MP4。** こちらで音声を合成してから本番レンダーを開始し、
    `renderId` を返す（5クレジット・有料プラン）。**`output:"preview"` なら
    1クレジット・低解像度・20秒**で、無料プランでも動くものが見られる。
-   どちらも `get_render` でポーリングする。
+   ジョブで受け付けたとき（MCP など）は先に `jobId` が返り、`get_job` の
+   `result.renderId` で受け取る（上の「非同期ジョブ」）。
+   どちらも最後は `get_render` でポーリングする。
 2. **台本を書く**: 話者(`speaker`=キャラid)とセリフ(`text`)の配列を作る。掛け合い形式が「ゆっくり」らしい。
    - 漢字の読み間違いを避けたい箇所は `reading`（発音かな）を付ける。
    - 冒頭の挨拶 → 本題（結論→理由→具体例）→ まとめ、の構成が定番。
@@ -160,7 +238,8 @@
    立ち絵が画面に出ている行にだけ効く。
 5. **生成する**: `create_yukkuri_video`（または `POST /agent/generate`）に `{ title, backgroundImageUrl, script }` を渡す。
    既定で MP4 を焼く。試すだけなら `output: "preview"` を足す（1クレジット・20秒）。
-6. **受け取る**: `renderId` が返るので `get_render` でポーリングする。
+6. **受け取る**: `renderId` が返るので `get_render` でポーリングする
+   （`jobId` が返ったときは、`get_job` が `succeeded` になってから `result.renderId` を使う）。
    **完了の判定は `done === true` かつ `outputFile` が非空**（下の「レンダーの成否判定」）。
    その `outputFile` をユーザーに渡す。`callbackUrl` を渡しておけば、完了時に
    こちらから通知する（そちらの本文は `downloadUrl`）。
@@ -285,6 +364,8 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 
 `get_checkout` は支払いの有無を直接返す。**残高の増減から推測しないこと**——
 残高は月次リセットや他の操作でも動く。
+  - `ai_unavailable` … AI サービスが一時的に使えない（503）。台本生成ジョブが失敗する。
+    クレジットは返金済みか、後追いの掃除処理が返金する。少し置いてから再試行してよい。
   - `generate_failed` / `render_start_failed` … そのまま再試行してよい。
     予約したクレジットは返される。ただし返金はサーバ側の後処理なので、
     **応答を受け取った時点の残高には反映されていないことがある**
@@ -293,9 +374,6 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
     残高が戻らないときは問い合わせること）。
     残高を当てにする処理を続ける場合は、少し置いてから
     `GET /api/v1/credits` で確認すること。
-  - `render_incomplete` … レンダーは**開始済み**で、完了を確認できなかっただけ。
-    同梱の `renderId` で進捗を確認すること。結果が出る前に再投入すると
-    二重に課金される（既に返金されている場合もあるので、まず進捗を見る）。
   - `progress_unavailable` … 進捗が読めなかっただけ。レンダーは継続している可能性があるので
     打ち切らず再試行する。
   - `internal_error` … 一覧取得など、課金を伴わない読み取りが失敗した。
@@ -309,11 +387,12 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
   返ってきた `validSpeakers` をそのまま使えばよい（システムキャラ一覧だけを見て
   判断すると、カスタムキャラを誤って除外する）。
 - レート上限: `code: "rate_limited"` と **`retryAfter`（秒）**、同値の `Retry-After` ヘッダ。その秒数だけ待って再試行する。
-- **200 が返っても完了とは限らない**: `waitForCompletion: true` で呼んでも、
-  レンダーが始まったあとに完了確認そのものが失敗した場合は
-  `status: "rendering"` と `renderId` を返す（`"completed"` とは限らない）。
-  この場合の課金は正当で、レンダーは走っている——進捗で完了を追うこと。
-  **`status` を見ずに `outputUrl` を読むと undefined になる。**
+- **200 が返っても完了とは限らない**: `render_mp4` の 200 は**開始**の応答で、
+  常に `status: "rendering"` と `renderId` を返す。`waitForCompletion` は
+  非推奨で**無視される**（付けても待たず、エラーにもならない）。
+  課金は正当で、レンダーは走っている——進捗（`get_render` /
+  `GET .../render/{renderId}/progress`）で完了を追うこと。
+  **開始の応答に `outputUrl` は入らない。出力URLは進捗の `outputFile` から取ること。**
 - レンダーの成否判定: 進捗（`get_render` / `GET .../render/{renderId}/progress`）は
   **`done` だけ見ると誤る**。
   - 成功: `done === true` **かつ** `outputFile` が非空
@@ -340,6 +419,8 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 **ヘッダ（`Idempotency-Key`）でも本文（`idempotencyKey`）でもよい**——MCP の引数名で
 本文に入れても効く。レンダーは5クレジットと一番高いので、特に付けること。同じ鍵で
 再投入すると、最初に成功したときの応答がそのまま返り、課金は起きない。有効期間は24時間。
+ジョブで受け付けた（202）ときは、ジョブが処理中・成功済みの間、同じ鍵で**同じ `jobId`** が返る。
+同期とジョブは同じ鍵を共有する（片方で使った鍵をもう片方で使っても、二重には作られない）。
 
 （2026-09-09 まで、REST を直接叩いて**本文に**入れた鍵は黙って捨てられていた。
 応答が遅くて投げ直すと、同じ鍵なのにプロジェクトが2本でき、2回課金された。）
@@ -360,20 +441,21 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 
 | 応答 | 鍵の状態 | 次にすること |
 |---|---|---|
+| `202`（ジョブを受け付けた） | ジョブが持つ（処理中・成功済みの間） | 投げ直しても**同じ jobId** が返り、課金は起きない。`get_job` で追う。ジョブが `failed` になると鍵は空くので、理由を直してから**同じ鍵**でやり直す（レンダーの起動後に失敗したジョブだけは鍵が空かず、投げ直すと起動済みのレンダーの `renderId` が 200 で返る） |
 | `402` insufficient_credits / plan_required | 解放される | 購入・アップグレード後、**同じ鍵**でそのまま投げ直す |
-| `409` in_flight | 別のリクエストが保持中 | 少し待って**同じ鍵**で再試行する |
+| `409` in_flight | 別のリクエストが保持中（その鍵のジョブが処理中の間は、`Prefer` なしの同期の呼び出しにもこれが返る） | 少し待って**同じ鍵**で再試行する |
 | `503` unavailable（判定できなかった） | 取られていない | **同じ鍵**でそのまま再試行してよい。課金は起きていない |
 | `503` unavailable（クレジット確保に失敗） | 保持されたまま | **課金されたか確定していない**。`GET /api/v1/credits` で残高を確認し、しばらく置いてから同じ鍵で再試行する（鍵は65分で自然に解ける） |
+| `503` unavailable（ジョブの受け付けで `jobId` 付き） | 受け付けが入っていればジョブが持つ | 受け付けが入ったか分からなかった場合と、ジョブを積めなかった場合の2通りがあり、本文では区別できない。`GET /api/v1/jobs/{jobId}` で確かめる: ジョブがあって `queued` / `running` / `succeeded` なら課金されて進んでいる、`not_found` なら課金されていない、`failed` なら返金される。**同じ鍵**で投げ直してもよい: ジョブが `queued` / `running` / `succeeded` なら同じ jobId が返る（二重には課金されない）。`failed` なら鍵は空いていて、投げ直しは新しい jobId の新しいジョブとして改めて課金されるが、先に押さえた分は返金されている（二重にはならない）。`not_found` なら新しく受け付ける |
 | `500` `render_start_failed` / `generate_failed` | 解放される | そのまま同じ鍵で再試行してよい。課金分は返金済みか、返金待ちとして記録済み（両方の書き込みが落ちた場合のみサーバログにのみ残る） |
-| `500` `render_incomplete` | 解放される | **すぐに再投入しないこと。** レンダーは開始済みで、走っている／既に出来ている場合がある。同梱の `renderId` で進捗を先に確認する（そのまま投げ直すと、同じ動画をもう一度 5 クレジットで作る） |
 
 クレジット確保の失敗だけ鍵を保持するのは、Firestore のトランザクションが
 コミット後に失敗しうるためで、そこで解放すると再試行が二度目の課金になる。
 
 失敗した応答は記録しないので、500 が返った場合の再試行は通常どおり実行される
 （一時的な障害が鍵に焼き付いて恒久化することはない）。**逆に言えば、鍵は
-「もう一度実行してよいか」を判定しない**——`render_incomplete` のように
-「実行は済んでいる」種類の 500 では、鍵ではなく `code` を見て判断すること。
+「もう一度実行してよいか」を判定しない**——再実行してよいかは、鍵ではなく
+応答の `code` を見て上の表で判断すること。
 
 ## 大量に作る
 
@@ -485,7 +567,25 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
   `completed` を返すことを確かめてから本番の台本を流すこと。**
   途中で止まる場合は `get_project` で台本を、`generate_audio` で音声を、
   `render_mp4` でレンダーを、と段ごとに切り分けられる。不具合として報告してほしい。
+  ジョブで受け付ける形（2026-09-15）も、本番で最後まで通した実績はまだ無い。
 - MP4 の音量は行ごとに測って揃えている（実測 -14.4 LUFS、真のピーク
   -2.0 dBTP）。YouTube の基準（-14 前後）とほぼ同じなので、そのまま
   投稿して音量で不利になることはない。
 - 機械可読な定義: `https://app.yukkurigen.com/openapi.json`
+
+## 変更履歴
+
+- **2026-09-15**: `create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` /
+  `"preview"` をジョブで受け付けるようにした（`JOBS_ENABLED=1` のとき。MCP は自動で、REST は
+  `Prefer: respond-async` を付けたとき）。数秒で 202 と `jobId` / `projectId` が返り、
+  **この応答に `renderId` は入らない**——`get_job` が `succeeded` になったら `result.renderId` を
+  `get_render` に渡す。クレジットは受け付けの時点で押さえ、ジョブが失敗したら返金する。
+  残高不足などの門はその場で返り、そのときプロジェクトは作られない。同じ鍵の再送は同じ
+  `jobId` を返す。ジョブの GET は `projectId` を返し、通知の署名鍵（`callbackSecret`）は返さない。
+  `output:"draft"` は同期のまま。`Prefer` を付けない REST の呼び出しも既定では同期のまま
+  （サーバの設定で待つ時間を決めてあるときだけ、終わらなければ 202 が返る）。
+- **2026-09-15**: `render_mp4`（`POST /api/v1/projects/{projectId}/render`）の
+  `waitForCompletion` を非推奨にし、**受け付けるが無視する**ようにした。付けても
+  待たずに `status: "rendering"` と `renderId` を返す（400 にはならない）。
+  完了は `get_render` / 進捗で追うこと。待機中の失敗を表していた 500 の
+  `render_incomplete` は、これに伴い返らなくなった。
