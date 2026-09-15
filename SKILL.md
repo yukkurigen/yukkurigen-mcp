@@ -91,7 +91,8 @@ Header: `Preference-Applied: respond-async`
 - `status: "succeeded"` → `result` に完了データ（同期パスの 200 ボディと同じ形）
 - `status: "failed"` → `error.code` に理由（`error.message` に説明、`error.httpStatus` も入る）
 
-MCP では `generate_audio` と `create_yukkuri_video`（mp4 / preview）のツールが自動的に
+MCP では `generate_audio` と `create_yukkuri_video`（mp4 / preview）と
+`create_yukkuri_videos_batch`（下の「大量に作る」）のツールが自動的に
 この非同期パスを使い、jobId を返す。`get_job` ツールで追う（サーバの設定によっては
 ジョブにならず、同期で待ってから結果を返す）。
 
@@ -476,23 +477,100 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 
 各要素は `create_yukkuri_video` と**まったく同じ形**。中では1件ずつ順に
 処理され、認証・レート制限・クレジットはそれぞれに効く（まとめても
-安くならない）。応答は 200 固定で、`results` に1件ずつの結果が index 順に並ぶ:
+安くならない）。結果は `results` に1件ずつ index 順に並ぶ（同期なら 200 の応答そのもの、
+ジョブで受け付けたなら `get_job` の `result`。下の「バッチもジョブで受け付ける」）:
 
+- mp4 / preview の件は `projectId` と `renderId`（ジョブで受け付けたなら、その件のジョブの
+  `jobId` も）が入る。`renderId` は**レンダーの開始まで済んだ**という意味で、動画はまだ焼いている
+  途中——`projectId` と一緒に `get_render` に渡して完成を待つ。draft の件は `renderId` が無い。
+- `status` はその件の HTTP ステータス（整数。単発の `create_yukkuri_video` を呼んだときと同じ）。
 - 途中の1件が失敗しても、**成功した分の `projectId` は必ず返る**。捨てないこと。
 - 残高切れ（`insufficient_credits` / `plan_required`）とレート制限
   （`rate_limited`）を受けた時点で**そこで打ち切る**。`stoppedAtIndex` /
   `stopReason` / `notAttempted` が付く。
 - **`notAttempted` は「失敗した」ではなく「まだ作っていない」。** 失敗と
   混同して作り直すと、成功した分をもう一度作って二重に払うことになる。
-  残りだけを投げ直すこと。
+  投げ直し方は下の2つだけ（`nextStep` にも同じことが入る）。
 
 `idempotencyKeyPrefix` を付けると、各件へ `<prefix>:<index>` が冪等キーとして
-渡る。**同じ prefix で投げ直せば、既に作られた分は二重課金されない。**
-打ち切られたあとの再投入は、同じ prefix のまま全件投げ直してよい。
+渡る。打ち切られたあとの投げ直しは、次の**どちらか**にする:
+
+1. **全件を同じ `idempotencyKeyPrefix` でそのまま送り直す。** 作った件は同じ結果が返り、二重課金されない。
+   ただし冪等キーが効くのは**その件が終わってから 24 時間以内**だけ。過ぎた件は同じ prefix でも
+   もう一度作られて課金される。prefix を付けていなかったなら、この方法は使えない。
+2. **打ち切った件（`stoppedAtIndex`）と `notAttempted` の分だけを、新しい `idempotencyKeyPrefix` の新しい
+   バッチで送る。** 24 時間を過ぎた・prefix を付けていなかったときはこちら。
+
+**同じ prefix のまま一部の件だけを送らないこと。** 番号がずれて別の件の冪等キー（`<prefix>:<index>`）に
+当たり、冪等キーは本文を比べないので、その件の前の結果が成功として返るだけで、足りない動画は作られない。
 
 レート制限は1分あたりの呼び出し回数（無料5 / スタンダード10 / プロ20）で、
 バッチの中の1件も1回と数える。無料プランで20件投げると6件目で打ち切られる
-——これは仕様どおりで、`notAttempted` を見て1分後に残りを投げ直せばよい。
+——これは仕様どおりで、1分後に上の2つのどちらか（全件を同じ prefix で、または打ち切った件と
+`notAttempted` の分だけを新しい `idempotencyKeyPrefix` の新しいバッチで）で投げ直せばよい。
+
+### バッチもジョブで受け付ける
+
+20件を1回の応答の中で順に作ると、接続が切れるまでに終わらない。
+`Prefer: respond-async` を付けると（`Authorization: Bearer` のときだけ）、受け付けだけをして
+数秒で 202 を返し、各件はサーバ側のジョブが1件ずつ順に作る（サーバの設定によっては付けても
+ジョブにならず、同期で処理して 200 を返す）。**MCP の `create_yukkuri_videos_batch` は自分でこれを
+付ける**ので、MCP から使うときは何もしなくてよい。
+
+```json
+{ "jobId": "...", "status": "queued", "pollUrl": "/api/v1/jobs/{jobId}", "requested": 2 }
+```
+
+流れ（MCP）:
+
+    create_yukkuri_videos_batch { idempotencyKeyPrefix, items }   # 数秒で jobId が返る
+    get_job { jobId }                                             # succeeded まで待つ（1件ずつ作る）
+    get_render { projectId, renderId }                            # result.results の各件ごとに
+
+- **202 には `results` が入らない。** まだ1本も作っていない。クレジットも押さえておらず、
+  各件を作り始めるときにその件の分を押さえる。
+- 受け付けでその場に返るもの（何も作られない）: 認証（401）、1件目のスコープ不足と、どの件に
+  要るスコープも持っていない場合（403 `insufficient_scope`。mp4 / preview は `render:mp4` と
+  `audio:generate`、draft は `projects:write`）、本文の合計が 4 MiB を超える（400
+  `validation_error`。1件で 512 KiB を超える件は、その件だけが結果で 400 になる）、レート上限
+  （429 `rate_limited`。受け付け1回ごとに数える）、進行中（queued / running）のバッチが同じ
+  利用者にすでに2件ある（429 `rate_limited`。`Retry-After` は 300 秒。本文の `activeJobIds`
+  （`activeJobs` に `jobId` と `pollUrl`）が進行中のバッチなので、投げ直し続けずに `get_job` で追い、
+  どちらかが終わってから投げ直す。受け付けの 202 を取り落としたときも、ここで `jobId` が分かる）。
+- `succeeded` の `result` は同期の 200 と同じ封筒で、打ち切ったなら `stoppedAtIndex` /
+  `stopReason` / `notAttempted` も入る。MCP の `get_job` は本文で各件を一覧にする。
+- 1件のジョブが3時間待っても終わらないと、その件の結果は `child_timeout`（504）になり、次の件へ
+  進む。**そのジョブは止めていない**ので、作り直さず、結果の `jobId` を `get_job` に渡して追う。
+- サーバの設定によっては、進行中のバッチが次の件を作る前に打ち切られる（`stopReason` が
+  `jobs_paused`、その件の結果は 503）。その件のジョブは作っておらずクレジットも押さえていないので、
+  ほかの打ち切りと同じく、しばらく置いてから、全件を同じ `idempotencyKeyPrefix` で送り直すか、その件と
+  `notAttempted` の分だけを新しい `idempotencyKeyPrefix` の新しいバッチで送る。
+- **バッチのジョブが `failed` になっても返金ではない。** バッチのジョブ自体はクレジットを
+  持たず、作り始めた件はそれぞれのジョブで課金されたまま進み、動画も作られる。
+  `GET /api/v1/jobs/{jobId}` は失敗したバッチに `partialResults` を付け、作り始めた件（`started`。
+  `projectId` / `renderId` / `jobId`）、ジョブのある失敗した件（`failedWithJob`。課金の扱いはその
+  `jobId` で確かめる）、作られていない件（`notCreated`）、同じ冪等キーの処理が別の呼び出しで進行中
+  だった件（`inFlight`。409 `in_flight`）、まだ作っていない件（`notAttempted`）と、投げ直してよい件の
+  番号（`resendIndexes`）を分けて返す。MCP の `get_job` は本文でも同じ分け方で
+  案内する。**`started` と `failedWithJob` の件は投げ直さない。** ただし `failedWithJob` のうち、その件の
+  ジョブが失敗して返金された件は冪等キーが空いているので、同じ `idempotencyKeyPrefix` で全件を投げ直すと
+  作り直され、1回課金される（投げ直す前に、その `jobId` を `get_job` で確かめる。`child_timeout` で
+  まだ動いている件は作り直されない）。`progress.done` は動いている件を
+  数えないので、この判断に使わないこと。`partialResults` が `null` なら件を読めなかったので、
+  しばらく置いてから読み直す。
+- 投げ直すときは、**`resendIndexes` の件だけを新しい `idempotencyKeyPrefix` の新しいバッチ**で送る
+  （同じ prefix で一部だけを送ると、番号がずれて別の件の冪等キーに当たる）。同じ
+  `idempotencyKeyPrefix` で全件を投げ直しても作り始めた件が二重に作られないのは、**その件のジョブが
+  終わってから 24 時間以内**だけ（過ぎた件はもう一度作られ、課金される）。その期限は
+  `partialResults.fullResendSafeUntil` に入る（`null` なら全件を投げ直さない）。
+- **`inFlight` の件は `resendIndexes` に入らない。新しい `idempotencyKeyPrefix` のバッチに入れないこと**
+  （新しい冪等キーは生きている予約を素通りし、別の呼び出しが作っている動画をもう一度作って払う）。
+  しばらく置いてから、その件だけを同じ冪等キー（`<idempotencyKeyPrefix>:<index>`。prefix を付けて
+  いなければその件の `idempotencyKey`）で送り直す。まだ進行中なら作らずに断られ、作り終わっていれば
+  同じ結果が返る。
+- `Prefer` を付けない REST の呼び出しは同期のまま。ただしサーバの設定によっては、同じ受け付けの
+  あと一定時間だけ完了を待ち、終わらなければ `Preference-Applied` なしの 202 を返す。
+  **202 が返りうるものとして扱うこと。**
 
 ## 完了を待たずに済ませる（コールバック）
 
@@ -569,13 +647,28 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
   `completed` を返すことを確かめてから本番の台本を流すこと。**
   途中で止まる場合は `get_project` で台本を、`generate_audio` で音声を、
   `render_mp4` でレンダーを、と段ごとに切り分けられる。不具合として報告してほしい。
-  ジョブで受け付ける形（2026-09-15）も、本番で最後まで通した実績はまだ無い。
+  ジョブで受け付ける形（2026-09-15）も、本番で最後まで通した実績はまだ無い（まとめて作るバッチも同じ）。
 - MP4 の音量は行ごとに測って揃えている（実測 -14.4 LUFS、真のピーク
   -2.0 dBTP）。YouTube の基準（-14 前後）とほぼ同じなので、そのまま
   投稿して音量で不利になることはない。
 - 機械可読な定義: `https://app.yukkurigen.com/openapi.json`
 
 ## 変更履歴
+
+- **2026-09-15**: `create_yukkuri_videos_batch`（`POST /api/v1/agent/generate/batch`）をジョブで
+  受け付けるようにした（MCP は自動で、REST は `Authorization: Bearer` に `Prefer: respond-async` を
+  付けたとき。サーバの設定によってはジョブにならず同期のまま）。数秒で 202 と `jobId` / `requested` が
+  返り、**この応答に `results` は入らない**——`get_job` が `succeeded` になったら `result.results` の
+  各件の `renderId` と `projectId` を `get_render` に渡す。各件は1件ずつ順に作り、クレジットはその件を
+  作り始めるときに押さえる。打ち切りの規則（`stoppedAtIndex` / `stopReason` / `notAttempted`）は
+  同期と同じ。ジョブで受け付けるときは、受け付けの時点で本文の大きさ（合計 4 MiB）とレート上限と
+  進行中のバッチの数（同じ利用者に2件まで。429 `rate_limited`）も見る。3時間待っても終わらない件は
+  `child_timeout` になり次の件へ進む（その件のジョブは動き続ける）。バッチのジョブの `failed` は
+  返金を意味しない（作り始めた件は課金されたまま進む）。失敗したバッチには `GET /api/v1/jobs/{jobId}` が
+  `partialResults`（作り始めた件・投げ直してよい件の番号・同じ prefix で全件を投げ直せる期限）を付ける。
+  同じ prefix の投げ直しで二重に作られないのは、その件が終わってから 24 時間以内だけ。サーバの設定に
+  よっては、進行中のバッチが次の件の前に `jobs_paused` で打ち切られる。`results[].status` は整数で、mp4 / preview の
+  件には同期でも `renderId` が入るようにした（ジョブで受け付けたなら `jobId` も）。
 
 - **2026-09-15**: `create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` /
   `"preview"` をジョブで受け付けるようにした（MCP は自動で、REST は

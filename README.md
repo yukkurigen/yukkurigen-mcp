@@ -104,6 +104,16 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 返り、2本目は作られない）。`renderId` に `agent-{jobId}` を渡して進捗を見れば結果が分かる
 （`not_found` なら起動しておらず、返金される）。
 
+複数本は `POST /api/v1/agent/generate/batch`（MCP は `create_yukkuri_videos_batch`、最大20件）にまとめて渡せる。
+`Prefer: respond-async` を付けると数秒で 202 と `jobId` が返り、各件はサーバ側で1件ずつ順に作られる
+（サーバの設定によってはジョブにならず、同期で処理して 200 が返る。MCP のツールは自分で付ける）。
+`succeeded` の `result.results` に各件の `projectId` / `renderId` / `jobId` が並ぶので、`renderId` を
+上と同じ進捗の URL に渡す。バッチのジョブが `failed` になっても**返金ではない**——作り始めた件は
+それぞれのジョブで課金されたまま進む。失敗したバッチは `GET /api/v1/jobs/{jobId}` の `partialResults` に
+作り始めた件と投げ直してよい件（`resendIndexes`）が分かれて入るので、その件だけを新しい
+`idempotencyKeyPrefix` の新しいバッチで送る。同じ prefix で全件を投げ直しても作り始めた件が二重に
+作られないのは、その件のジョブが終わってから 24 時間以内だけ（期限は `partialResults.fullResendSafeUntil`）。
+
 全項目の定義: https://app.yukkurigen.com/openapi.json
 
 ## AI に読ませるもの
@@ -133,7 +143,7 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
   通した実績がまだ無い。**まず少数の行で試して、`get_render` が `completed` を
   返すことを確かめてほしい。** 途中で止まる場合は段ごとに切り分けられる
   （`get_project` → `generate_audio` → `render_mp4`）。不具合として報告してほしい。
-  ジョブで受け付ける形（`Prefer: respond-async` と MCP の `create_yukkuri_video`、2026-09-15）も、
+  ジョブで受け付ける形（`Prefer: respond-async` と MCP の `create_yukkuri_video` / `create_yukkuri_videos_batch`、2026-09-15）も、
   本番で最後まで通した実績はまだ無い。
 - **`.ymmp`（YMM4 プロジェクト）の書き出しは 2026-09-07 に撤去した。** 音声も
   立ち絵も相手の YMM4 が作る形で、こちらの音声合成を一度も通らなかった——
