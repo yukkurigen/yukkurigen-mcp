@@ -76,11 +76,14 @@ JSON-RPC 2.0 over HTTP。`tools/list` でツール一覧が取れる。
 curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
   -H "Authorization: Bearer $YUKKURIGEN_API_KEY" \
   -H "Content-Type: application/json" \
+  -H "Idempotency-Key: my-first-video-sync" \
   -d '{"title":"テスト","script":[{"speaker":"reimu","text":"こんにちは"},{"speaker":"marisa","text":"よろしくだぜ"}]}'
 ```
 
 これは同期の呼び出しで、音声合成とレンダー開始を待ってから返る（台本が長いと数十秒。
 サーバの設定によっては、一定時間だけ待って終わらなければ 202 が返る）。
+待っている途中で接続が切れても、サーバ側では生成と課金が進む。投げ直すときは同じ `Idempotency-Key` を付ける
+（同じ鍵なら、処理中は 409、終わっていれば最初の結果が返り、2本目は作られない）。
 待たずに済ませるなら `Prefer: respond-async` を付ける。数秒で 202 と `jobId` / `projectId` が返る
 （サーバの設定によってはジョブにならず、同期で待ってから 200 が返る）:
 
