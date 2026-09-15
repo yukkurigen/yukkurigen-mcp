@@ -73,7 +73,7 @@
 `generate_audio`（POST /audio/generate）、台本生成（POST /script/generate）、
 BGM 生成（POST /bgm/generate）、BGM パイプライン（POST /bgm/pipeline）は、
 `Prefer: respond-async` ヘッダを付けて呼ぶとサーバー側で非同期ジョブになる
-（環境変数 `JOBS_ENABLED=1` が必要）。
+（サーバの設定によっては付けてもジョブにならず、同期で処理して 200 を返す）。
 
 ```
 POST /api/v1/projects/{id}/audio/generate
@@ -89,15 +89,17 @@ Header: `Preference-Applied: respond-async`
 `get_job` / `GET /api/v1/jobs/{jobId}` でポーリングする:
 - `status: "queued"` / `"running"` → まだ処理中
 - `status: "succeeded"` → `result` に完了データ（同期パスの 200 ボディと同じ形）
-- `status: "failed"` → `error.message` に理由
+- `status: "failed"` → `error.code` に理由（`error.message` に説明、`error.httpStatus` も入る）
 
 MCP では `generate_audio` と `create_yukkuri_video`（mp4 / preview）のツールが自動的に
-この非同期パスを使い（JOBS_ENABLED=1 のとき）、jobId を返す。`get_job` ツールで追う。
+この非同期パスを使い、jobId を返す。`get_job` ツールで追う（サーバの設定によっては
+ジョブにならず、同期で待ってから結果を返す）。
 
 #### 台本→MP4 の一括生成もジョブで受け付ける
 
 `create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` / `"preview"` も、
-`Prefer: respond-async` を付けるとジョブになる（`JOBS_ENABLED=1` のとき）。
+`Prefer: respond-async` を付けるとジョブになる（サーバの設定によっては付けてもジョブにならず、
+同期で待ってから 200 と `renderId` を返す）。
 `output:"draft"` は常に同期。**MCP の `create_yukkuri_video` は自分でこれを付ける**ので、
 MCP から使うときは何もしなくてよい。
 
@@ -167,8 +169,8 @@ MCP から使うときは何もしなくてよい。
 そこで切れる。切れても**サーバ側では課金もレンダーも進んでいる**ので、
 何もせず投げ直すと二重に払うことになる。
 
-- **ジョブで受け付けてもらう。** MCP の `create_yukkuri_video` はサーバがジョブを
-  使える設定（`JOBS_ENABLED=1`）のとき自分でそうするので、数秒で `jobId` が返る。
+- **ジョブで受け付けてもらう。** MCP の `create_yukkuri_video` は自分でそうするので、
+  数秒で `jobId` が返る（サーバの設定によってはジョブにならず、同期で待ってから `renderId` を返す）。
   REST を直接叩くなら `Prefer: respond-async` を付ける（上の「非同期ジョブ」）
 - **`idempotencyKey` を必ず付ける。** 同じ鍵で投げ直せば、最初の結果（ジョブなら同じ
   `jobId`）が返り課金は起きない。同期の処理中なら「進行中」と返るので少し待って
@@ -446,7 +448,7 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 | `409` in_flight | 別のリクエストが保持中（その鍵のジョブが処理中の間は、`Prefer` なしの同期の呼び出しにもこれが返る） | 少し待って**同じ鍵**で再試行する |
 | `503` unavailable（判定できなかった） | 取られていない | **同じ鍵**でそのまま再試行してよい。課金は起きていない |
 | `503` unavailable（クレジット確保に失敗） | 保持されたまま | **課金されたか確定していない**。`GET /api/v1/credits` で残高を確認し、しばらく置いてから同じ鍵で再試行する（鍵は65分で自然に解ける） |
-| `503` unavailable（ジョブの受け付けで `jobId` 付き） | 受け付けが入っていればジョブが持つ | 受け付けが入ったか分からなかった場合と、ジョブを積めなかった場合の2通りがあり、本文では区別できない。`GET /api/v1/jobs/{jobId}` で確かめる: ジョブがあって `queued` / `running` / `succeeded` なら課金されて進んでいる、`not_found` なら課金されていない、`failed` なら返金される。**同じ鍵**で投げ直してもよい: ジョブが `queued` / `running` / `succeeded` なら同じ jobId が返る（二重には課金されない）。`failed` なら鍵は空いていて、投げ直しは新しい jobId の新しいジョブとして改めて課金されるが、先に押さえた分は返金されている（二重にはならない）。`not_found` なら新しく受け付ける |
+| `503` unavailable（ジョブの受け付けで `jobId` 付き） | 受け付けが入っていればジョブが持つ | 受け付けが入ったか分からなかった場合と、ジョブを積めなかった場合の2通りがあり、本文では区別できない。`GET /api/v1/jobs/{jobId}` で確かめる: ジョブがあって `queued` / `running` / `succeeded` なら課金されて進んでいる、`not_found` なら課金されていない、`failed` なら返金される。**同じ鍵**で投げ直してもよい: ジョブが `queued` / `running` / `succeeded` なら同じ jobId が返る（二重には課金されない）。`failed` なら鍵は空いていて、投げ直しは新しい jobId の新しいジョブとして改めて課金されるが、先に押さえた分は返金されている（二重にはならない）。`not_found` なら新しく受け付ける。例外は、レンダーを起動したあとにジョブだけが失敗した場合（まれ）で、返金されず鍵も空かない。同じ鍵で投げ直すと、起動済みのレンダー（`renderId: "agent-{jobId}"`）が 200 で返る（2本目は作られない） |
 | `500` `render_start_failed` / `generate_failed` | 解放される | そのまま同じ鍵で再試行してよい。課金分は返金済みか、返金待ちとして記録済み（両方の書き込みが落ちた場合のみサーバログにのみ残る） |
 
 クレジット確保の失敗だけ鍵を保持するのは、Firestore のトランザクションが
@@ -576,8 +578,8 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
 ## 変更履歴
 
 - **2026-09-15**: `create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` /
-  `"preview"` をジョブで受け付けるようにした（`JOBS_ENABLED=1` のとき。MCP は自動で、REST は
-  `Prefer: respond-async` を付けたとき）。数秒で 202 と `jobId` / `projectId` が返り、
+  `"preview"` をジョブで受け付けるようにした（MCP は自動で、REST は
+  `Prefer: respond-async` を付けたとき。サーバの設定によってはジョブにならず同期のまま）。数秒で 202 と `jobId` / `projectId` が返り、
   **この応答に `renderId` は入らない**——`get_job` が `succeeded` になったら `result.renderId` を
   `get_render` に渡す。クレジットは受け付けの時点で押さえ、ジョブが失敗したら返金する。
   残高不足などの門はその場で返り、そのときプロジェクトは作られない。同じ鍵の再送は同じ

@@ -79,8 +79,10 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
   -d '{"title":"テスト","script":[{"speaker":"reimu","text":"こんにちは"},{"speaker":"marisa","text":"よろしくだぜ"}]}'
 ```
 
-これは同期の呼び出しで、音声合成とレンダー開始を待ってから返る（台本が長いと数十秒）。
-待たずに済ませるなら `Prefer: respond-async` を付ける。数秒で 202 と `jobId` / `projectId` が返る:
+これは同期の呼び出しで、音声合成とレンダー開始を待ってから返る（台本が長いと数十秒。
+サーバの設定によっては、一定時間だけ待って終わらなければ 202 が返る）。
+待たずに済ませるなら `Prefer: respond-async` を付ける。数秒で 202 と `jobId` / `projectId` が返る
+（サーバの設定によってはジョブにならず、同期で待ってから 200 が返る）:
 
 ```bash
 curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
@@ -128,6 +130,8 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
   通した実績がまだ無い。**まず少数の行で試して、`get_render` が `completed` を
   返すことを確かめてほしい。** 途中で止まる場合は段ごとに切り分けられる
   （`get_project` → `generate_audio` → `render_mp4`）。不具合として報告してほしい。
+  ジョブで受け付ける形（`Prefer: respond-async` と MCP の `create_yukkuri_video`、2026-09-15）も、
+  本番で最後まで通した実績はまだ無い。
 - **`.ymmp`（YMM4 プロジェクト）の書き出しは 2026-09-07 に撤去した。** 音声も
   立ち絵も相手の YMM4 が作る形で、こちらの音声合成を一度も通らなかった——
   代替が容易なわりに、保守する面だけが増えていた。MP4 一本にした。
