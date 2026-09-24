@@ -19,6 +19,20 @@
 
 ## つなぐ
 
+### ChatGPT・claude.ai（コネクタ）
+
+コネクタの追加で、この URL を入れるだけ。鍵は要らない:
+
+```
+https://app.yukkurigen.com/api/mcp
+```
+
+YukkuriGen の許可画面が開くので「許可する」を押す（OAuth 2.1・PKCE・動的クライアント登録）。
+つないだアプリは https://app.yukkurigen.com/settings/api-keys に「<アプリ名>（OAuth）」として出て、
+そこから取り消せる。
+
+### 鍵をヘッダーで渡すクライアント
+
 まず鍵を取る（無料・月10クレジット）:
 https://app.yukkurigen.com/settings/api-keys
 
@@ -148,9 +162,11 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 - **`.ymmp`（YMM4 プロジェクト）の書き出しは 2026-09-07 に撤去した。** 音声も
   立ち絵も相手の YMM4 が作る形で、こちらの音声合成を一度も通らなかった——
   代替が容易なわりに、保守する面だけが増えていた。MP4 一本にした。
-- **OAuth 認可サーバは提供していない。** 鍵は画面で発行する API キー。
-  RFC 9728 の Protected Resource Metadata は出しているが、`authorization_servers`
-  は載せていない（無いものを広告しないため）。
+- **OAuth は 2026-09-24 に入れた。** RFC 9728 の `authorization_servers` と
+  RFC 8414 のメタデータを出している。発行されるアクセストークンは API キーそのもので、
+  期限は無く refresh_token も出さない（取り消しは鍵の画面で）。本番で登録→許可→
+  トークン交換→`tools/list` まで通したが、ChatGPT・claude.ai の実際の画面からの接続は
+  こちらではまだ試していない。つながらなければ報告してほしい。
 - MP4 の完了通知（`callbackUrl`）は、こちら側が「終わったこと」を確定させた
   時点で送る。誰もポーリングしていない場合は掃除の巡回まで待つ。急ぐなら
   `get_render` を1〜2回叩けばその場で確定する。
