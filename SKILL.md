@@ -6,7 +6,7 @@
 
 ## 接続
 
-- 発行: ユーザーに `https://app.yukkurigen.com/settings/api-keys` でAPIキーを発行してもらう。
+- 発行: ユーザーに `https://app.yukkurigen.com/settings/api-keys` でAPIキーを発行してもらう（コネクタから OAuth でつなぐなら不要）。
   **無料プランでもここまで使える**（無料枠10クレジット）:
   - 台本の作成・読み返し・修正（`create_yukkuri_video` のプロジェクト作成部分、
     `get_project`、`update_lines`、`generate_audio`）——**すべて消費なし**
@@ -16,7 +16,11 @@
   - 本番の MP4 レンダー（全編・本番解像度・5クレジット）だけは有料プラン
     〈スタンダード以上〉または買い切りライセンスが必要。`402 plan_required` が返る
     ——そのときは下の「支払いが要るとき」に従って購入まで案内する。
-- MCP: `claude mcp add --transport http yukkurigen https://app.yukkurigen.com/api/mcp --header "Authorization: Bearer <KEY>"`
+- MCP（ChatGPT・claude.ai などのコネクタ）: `https://app.yukkurigen.com/api/mcp` を追加するだけ。
+  OAuth 2.1（動的クライアント登録・PKCE）で YukkuriGen の許可画面が開き、利用者が「許可する」を押すと
+  つながる。**鍵の発行は要らない。** 発行されたトークンは利用者の鍵一覧に「<アプリ名>（OAuth）」として出て、
+  そこから取り消せる。スコープは画面で発行する鍵と同じ（`youtube:upload` は付かない）。
+- MCP（ヘッダーを渡せるクライアント）: `claude mcp add --transport http yukkurigen https://app.yukkurigen.com/api/mcp --header "Authorization: Bearer <KEY>"`
 - REST: `Authorization: Bearer <KEY>` を付けて `https://app.yukkurigen.com/api/v1/...` を叩く。
 
 ## ツール（MCP）/ エンドポイント（REST）
@@ -90,6 +94,12 @@ Header: `Preference-Applied: respond-async`
 - `status: "queued"` / `"running"` → まだ処理中
 - `status: "succeeded"` → `result` に完了データ（同期パスの 200 ボディと同じ形）
 - `status: "failed"` → `error.code` に理由（`error.message` に説明、`error.httpStatus` も入る）
+
+**REST から直接呼ぶときは `Prefer: respond-async` と `Idempotency-Key` ヘッダを付けること。**
+`Prefer` を付けない呼び出しは同期のまま。ただしサーバの設定によっては、同じ受け付けのあと
+一定時間だけ完了を待ち、終われば同期と同じ 200（失敗なら同期と同じ形のエラー）、終わらなければ
+`Preference-Applied` なしの 202 と `jobId` を返す。**202 が返りうるものとして扱うこと。**
+同期で処理されたときは `Idempotency-Key` が効かず、台本・BGM は投げ直した分だけ課金される。
 
 MCP では `generate_audio` と `create_yukkuri_video`（mp4 / preview）と
 `create_yukkuri_videos_batch`（下の「大量に作る」）のツールが自動的に
