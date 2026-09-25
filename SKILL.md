@@ -74,7 +74,7 @@
 
 ### 非同期ジョブ（Prefer: respond-async）
 
-`generate_audio`（POST /audio/generate）、台本生成（POST /script/generate）、
+`generate_audio`（POST /audio/generate）、
 BGM 生成（POST /bgm/generate）、BGM パイプライン（POST /bgm/pipeline）は、
 `Prefer: respond-async` ヘッダを付けて呼ぶとサーバー側で非同期ジョブになる
 （サーバの設定によっては付けてもジョブにならず、同期で処理して 200 を返す）。
@@ -362,7 +362,8 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 
 ## クレジットとエラー
 
-- 消費: MP4 レンダー = 5、プレビュー = 1、AI台本生成 = 1。台本の作成・修正・音声生成は 0。
+- 消費: MP4 レンダー = 5、プレビュー = 1。台本の作成・修正・音声生成は 0。
+  台本はあなた（呼び出し側の AI）が書く。YukkuriGen のサーバは AI（LLM）を呼ばない。
 - 不足時: `code: "insufficient_credits"` / `code: "plan_required"`。**諦めずに購入まで案内すること**（下の「支払いが要るとき」）。
 - 権限不足: `code: "insufficient_scope"`。キーのスコープを確認。
 - 認証まわり: `code: "unauthenticated"`（401）。キーを付けていなければ `reason: "signup_required"`
@@ -423,8 +424,6 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 
 `get_checkout` は支払いの有無を直接返す。**残高の増減から推測しないこと**——
 残高は月次リセットや他の操作でも動く。
-  - `ai_unavailable` … AI サービスが一時的に使えない（503）。台本生成ジョブが失敗する。
-    クレジットは返金済みか、後追いの掃除処理が返金する。少し置いてから再試行してよい。
   - `generate_failed` / `render_start_failed` … そのまま再試行してよい。
     予約したクレジットは返される。ただし返金はサーバ側の後処理なので、
     **応答を受け取った時点の残高には反映されていないことがある**
