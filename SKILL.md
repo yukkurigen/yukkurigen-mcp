@@ -216,6 +216,11 @@ MCP から使うときは何もしなくてよい。
 
    混ぜると `400 cast_mismatch` を返す（課金なし）。応答の `casts` に一座の一覧が入っている。
 
+   **利用者の自作キャラ**（素材管理で PSD から取り込んだ立ち絵など）も `list_characters` に
+   `custom: true` で出る。その `id`（20文字の英数字）をそのまま `speaker` に書けば話者になる。
+   一座は東北勢と同じ（ずんだもん等とは一緒に出せる。ゆっくりとは混ぜられない）。`emotions` / `poses` は
+   そのキャラに設定済みの表情・ポーズで、無い表情を書いても近い表情か通常の顔で描かれる。
+
    **見た目（テンプレート）は人が決める。あなたは選ぶだけ。**
    `list_templates` で一覧を取り、返った `id` を `templateId` に渡す。
    `source: "system"`（5種）と `source: "mine"`（その人がエディタで作ったもの）の
@@ -738,6 +743,10 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
 - 機械可読な定義: `https://app.yukkurigen.com/openapi.json`
 
 ## 変更履歴
+
+- **2026-09-26**: 利用者の自作キャラ（PSD 取り込み）を `list_characters` に `custom: true` で返し、
+  その `id` を `speaker` に使えるようにした（一座は東北勢）。東北式の画面で枠の無い話者（春日部つむぎ・
+  自作キャラ）が声だけで映らなかったのを直し、喋らないキャラの枠に座らせるようにした。
 
 - **2026-09-15**: `create_yukkuri_videos_batch`（`POST /api/v1/agent/generate/batch`）をジョブで
   受け付けるようにした（MCP は自動で、REST は `Authorization: Bearer` に `Prefer: respond-async` を
