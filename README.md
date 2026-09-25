@@ -17,6 +17,48 @@
 
 直すのもこのサイトではなく、AI との会話で行う。
 
+## 作例
+
+台本は AI（Claude）が書いて MCP で渡し、返ってきた MP4 をそのまま載せている（人の手直し無し）。どちらも台本 22 行・約1分40秒。
+字幕・図解カード・写真・章の見出し・強調テロップ・BGM・効果音まで、全部こちらで自動で入れている。
+
+**ずんだもん・四国めたん「コンビニコーヒーが安い本当の理由」**
+
+![ずんだもんとめたんの解説動画。図解カードが出て、字幕が切り替わる](samples/zunda.gif)
+
+→ [MP4（720p・約100秒）](samples/zunda.mp4)
+
+**霊夢・魔理沙「寝る前のスマホが睡眠を壊す理由」**
+
+![霊夢と魔理沙の解説動画の9場面。写真・図解カード・強調テロップ](samples/yukkuri-scenes.jpg)
+
+→ [MP4（720p・約100秒）](samples/yukkuri.mp4)
+
+頼み方の例:
+
+> ずんだもんとめたんで、コンビニコーヒーが安い理由を1分半くらいで解説して。最後にチャンネル登録を呼びかけて。
+
+AI が台本を書いて `create_yukkuri_video` を呼び、`get_render` で完成した MP4 の URL と、
+YouTube の概要欄に貼るクレジット（`credits`）が返る。作例のクレジット:
+
+```
+【使用素材】
+音声: VOICEVOX:ずんだもん、VOICEVOX:四国めたん
+立ち絵: 坂本アヒル 様
+背景: いらすとや 様（https://www.irasutoya.com/）
+BGM: DOVA-SYNDROME（https://dova-s.jp/）、こおろぎ 様
+効果音: 効果音ラボ（https://soundeffect-lab.info/）
+写真: Openverse（CC0・パブリックドメイン）
+制作: YukkuriGen（https://yukkurigen.com/）
+```
+
+VOICEVOX の音声は「VOICEVOX:キャラ名」の表記が利用条件。動画を投稿するときは、この
+クレジットを概要欄に入れること（YukkuriGen から YouTube へ投稿した場合は自動で入る）。
+写真は Openverse で CC0・パブリックドメインのものだけを使っている。
+
+アカウントの無いまま呼ぶと、会員登録（無料・月10クレジット）の URL 付きで `signup_required` が返る。
+ChatGPT・claude.ai のコネクタなら、つなぐ時に登録と許可の画面が開く。
+
 ## つなぐ
 
 ### ChatGPT・claude.ai（コネクタ）
@@ -152,13 +194,12 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 
 ## 正直に言っておくこと
 
-- **`create_yukkuri_video` から MP4 まで一息に通す経路は本番未検証**（2026-09-07 時点）。
-  台本の作成・音声の合成・レンダーの各段は個別に動いているが、1コールで最後まで
-  通した実績がまだ無い。**まず少数の行で試して、`get_render` が `completed` を
-  返すことを確かめてほしい。** 途中で止まる場合は段ごとに切り分けられる
+- **`create_yukkuri_video` から MP4 まで一息に通す経路は、2026-09-25 に本番で通した**
+  （OAuth で接続 → `create_yukkuri_video` → `get_job` → `get_render` の完成まで。上の作例がその出力）。
+  台本の長さや話者の組み合わせによっては未確認の組み合わせが残る。途中で止まる場合は段ごとに切り分けられる
   （`get_project` → `generate_audio` → `render_mp4`）。不具合として報告してほしい。
-  ジョブで受け付ける形（`Prefer: respond-async` と MCP の `create_yukkuri_video` / `create_yukkuri_videos_batch`、2026-09-15）も、
-  本番で最後まで通した実績はまだ無い。
+- 図解カード・写真・章・強調テロップは、台本を Google Gemini に読ませて決めている。Gemini が混み合って
+  いるときは作れず、それらの無い動画になる（字幕・音声・BGM などはそのまま入る）。
 - **`.ymmp`（YMM4 プロジェクト）の書き出しは 2026-09-07 に撤去した。** 音声も
   立ち絵も相手の YMM4 が作る形で、こちらの音声合成を一度も通らなかった——
   代替が容易なわりに、保守する面だけが増えていた。MP4 一本にした。
