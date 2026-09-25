@@ -19,27 +19,36 @@
 
 ## 作例
 
-台本は AI（Claude）が書いて MCP で渡し、返ってきた MP4 をそのまま載せている（人の手直し無し）。どちらも台本 22 行・約1分40秒。
-図解カード・写真・章の見出し・強調テロップは、台本を書いた AI が行ごとに指定し（`card` / `photo` / `chapter` / `emphasis`）、
-こちらはそれを画像にして焼いている。音声・字幕・立ち絵・BGM・効果音はこちらで入れる。
+台本は AI（Claude）が書いて MCP で渡し、返ってきた MP4 をそのまま載せている（人の手直し無し。2026-09-26 に撮り直し）。
+どちらも台本 22 行。図解カード・写真・章の見出し・強調テロップも、台本を書いた AI が行ごとに指定している
+（`card` / `photo` / `chapter` / `emphasis`）。YukkuriGen はそれを画像にして焼くだけで、サーバで AI は呼ばない。
+音声・字幕・立ち絵・BGM・効果音は YukkuriGen が入れる。
 
 **ずんだもん・四国めたん「コンビニコーヒーが安い本当の理由」**
 
 ![ずんだもんとめたんの解説動画。図解カードが出て、字幕が切り替わる](samples/zunda.gif)
 
-→ [MP4 をダウンロード（720p・約100秒・音あり・7.3MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
+→ [MP4 をダウンロード（720p・約96秒・音あり・6.6MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
 
 **霊夢・魔理沙「寝る前のスマホが睡眠を壊す理由」**
 
 ![霊夢と魔理沙の解説動画の9場面。写真・図解カード・強調テロップ](samples/yukkuri-scenes.jpg)
 
-→ [MP4 をダウンロード（720p・約100秒・音あり・5.1MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4)
+→ [MP4 をダウンロード（720p・約82秒・音あり・5.1MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4)
 
 頼み方の例:
 
 > ずんだもんとめたんで、コンビニコーヒーが安い理由を1分半くらいで解説して。最後にチャンネル登録を呼びかけて。
 
-AI が台本を書いて `create_yukkuri_video` を呼び、`get_render` で完成した MP4 の URL と、
+AI は台本の行に、たとえば次のように演出も書いて `create_yukkuri_video` を呼ぶ:
+
+```json
+{"speaker":"zundamon","text":"安くできる理由は三つあるのだ。",
+ "card":{"title":"安くできる3つの理由","style":"steps","items":["豆をまとめて大量仕入れ","ボタンひとつで自動抽出","お客さんのセルフ式"],"span":4}}
+{"speaker":"metan","text":"味は大丈夫なのかしら？","photo":["coffee beans","coffee"]}
+```
+
+`get_render` で完成した MP4 の URL と、
 YouTube の概要欄に貼るクレジット（`credits`）が返る。作例のクレジット:
 
 ```
