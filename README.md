@@ -20,19 +20,23 @@
 ## 作例
 
 台本は AI（Claude）が書いて MCP で渡し、返ってきた MP4 をそのまま載せている（人の手直し無し。2026-09-26 に撮り直し）。
-どちらも台本 22 行。図解カード・写真・章の見出し・強調テロップも、台本を書いた AI が行ごとに指定している
-（`card` / `photo` / `chapter` / `emphasis`）。YukkuriGen はそれを画像にして焼くだけで、サーバで AI は呼ばない。
+台本は 21 行と 22 行。図解カード・写真・章の見出し・強調テロップ、**行ごとの表情とポーズ**も、台本を書いた AI が指定している
+（`card` / `photo` / `chapter` / `emphasis` / `emotion` / `pose`）。YukkuriGen はそれを画像にして焼くだけで、サーバで AI は呼ばない。
 音声・字幕・立ち絵・BGM・効果音は YukkuriGen が入れる。
+
+立ち絵は目・眉・口・顔色・汗や涙・腕が別々の部品なので、セリフごとに組み替える。
+表情は16種（ドヤ顔・ジト目・ガーン・照れ・大喜び など。全キャラ共通）、ポーズ（指さし・腕組み・マイク など）は
+ずんだもん・四国めたん・春日部つむぎ・あんこもんで使える。
 
 **ずんだもん・四国めたん「コンビニコーヒーが安い本当の理由」**
 
-![ずんだもんとめたんの解説動画。図解カードが出て、字幕が切り替わる](samples/zunda.gif)
+![ずんだもんとめたんの解説動画。行ごとに表情と腕のポーズが変わり、図解カードが出る](samples/zunda.gif)
 
-→ [MP4 をダウンロード（720p・約96秒・音あり・6.6MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
+→ [MP4 をダウンロード（720p・約96秒・音あり・6.7MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
 
 **霊夢・魔理沙「寝る前のスマホが睡眠を壊す理由」**
 
-![霊夢と魔理沙の解説動画の9場面。写真・図解カード・強調テロップ](samples/yukkuri-scenes.jpg)
+![霊夢と魔理沙の解説動画の9場面。表情が行ごとに変わる（困り・ドヤ顔・大喜び・照れ・ほっこり）。写真・図解カード・強調テロップ](samples/yukkuri-scenes.jpg)
 
 → [MP4 をダウンロード（720p・約82秒・音あり・5.1MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4)
 
@@ -44,8 +48,10 @@ AI は台本の行に、たとえば次のように演出も書いて `create_yu
 
 ```json
 {"speaker":"zundamon","text":"安くできる理由は三つあるのだ。",
- "card":{"title":"安くできる3つの理由","style":"steps","items":["豆をまとめて大量仕入れ","ボタンひとつで自動抽出","お客さんのセルフ式"],"span":4}}
-{"speaker":"metan","text":"味は大丈夫なのかしら？","photo":["coffee beans","coffee"]}
+ "card":{"title":"安くできる3つの理由","style":"steps","items":["豆をまとめて大量仕入れ","ボタンひとつで自動抽出","お客さんのセルフ式"],"span":4},
+ "emotion":"smug","pose":"hip"}
+{"speaker":"metan","text":"味は大丈夫なのかしら？","photo":["coffee beans","coffee"],"emotion":"troubled","pose":"hold"}
+{"speaker":"metan","text":"えっ、儲からなくてもいいってこと！？","emotion":"shocked","pose":"mouth_cover","cameraMode":"dynamic"}
 ```
 
 `get_render` で完成した MP4 の URL と、
