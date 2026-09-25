@@ -27,18 +27,19 @@
 立ち絵は目・眉・口・顔色・汗や涙・腕が別々の部品なので、セリフごとに組み替える。
 表情は16種（ドヤ顔・ジト目・ガーン・照れ・大喜び など。全キャラ共通）、ポーズ（指さし・腕組み・マイク など）は
 ずんだもん・四国めたん・春日部つむぎ・あんこもんで使える。
+聞き手も、直前に話したときの表情を穏やかにして残す。写真や図解が出ている間は、キャラが少し外へ寄って顔を空ける。
 
 **ずんだもん・四国めたん「コンビニコーヒーが安い本当の理由」**
 
 ![ずんだもんとめたんの解説動画。行ごとに表情と腕のポーズが変わり、図解カードが出る](samples/zunda.gif)
 
-→ [MP4 をダウンロード（720p・約96秒・音あり・6.7MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
+→ [MP4 をダウンロード（720p・約96秒・音あり・6.5MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
 
 **霊夢・魔理沙「寝る前のスマホが睡眠を壊す理由」**
 
 ![霊夢と魔理沙の解説動画の9場面。表情が行ごとに変わる（困り・ドヤ顔・大喜び・照れ・ほっこり）。写真・図解カード・強調テロップ](samples/yukkuri-scenes.jpg)
 
-→ [MP4 をダウンロード（720p・約82秒・音あり・5.1MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4)
+→ [MP4 をダウンロード（720p・約82秒・音あり・5.2MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4)
 
 頼み方の例:
 
