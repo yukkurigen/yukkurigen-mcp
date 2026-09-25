@@ -1,13 +1,13 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "com.yukkurigen/yukkurigen",
-  "description": "台本（話者＋セリフの配列）を渡すと、日本語の「ゆっくり解説」動画（MP4）が返る。音声の合成からレンダーまでサーバ側で行う。REST と MCP の両方から呼べる。",
+  "name": "io.github.yukkurigen/yukkurigen-mcp",
+  "description": "台本を渡すとゆっくり解説・ずんだもん解説の動画（MP4）が返る。音声合成・字幕・図解・BGM・効果音まで自動。ChatGPT / Claude からは OAuth でつなぐだけ。",
   "repository": {
     "url": "https://github.com/yukkurigen/yukkurigen-mcp",
     "source": "github",
     "id": "1359133051"
   },
-  "version": "1.0.0",
+  "version": "1.1.0",
   "websiteUrl": "https://yukkurigen.com",
   "remotes": [
     {
@@ -16,8 +16,8 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer <API key>。鍵は https://app.yukkurigen.com/settings/api-keys で発行する。",
-          "isRequired": true,
+          "description": "Bearer <API key>（OAuth に対応したクライアントは不要）。鍵は https://app.yukkurigen.com/settings/api-keys で発行する。",
+          "isRequired": false,
           "isSecret": true
         }
       ]

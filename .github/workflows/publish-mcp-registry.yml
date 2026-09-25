@@ -1,0 +1,27 @@
+# MCP レジストリ（registry.modelcontextprotocol.io）へ server.json を登録する。
+# 名前空間 io.github.yukkurigen/* は、この組織のリポジトリの GitHub Actions（OIDC）で所有証明する。
+name: Publish to MCP Registry
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [server.json]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --help | head -5
+      - name: Login (GitHub OIDC)
+        run: ./mcp-publisher login github-oidc
+      - name: Publish
+        run: ./mcp-publisher publish
