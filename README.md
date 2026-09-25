@@ -26,13 +26,13 @@
 
 ![ずんだもんとめたんの解説動画。図解カードが出て、字幕が切り替わる](samples/zunda.gif)
 
-→ [MP4（720p・約100秒）](samples/zunda.mp4)
+→ [MP4 をダウンロード（720p・約100秒・音あり・7.3MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
 
 **霊夢・魔理沙「寝る前のスマホが睡眠を壊す理由」**
 
 ![霊夢と魔理沙の解説動画の9場面。写真・図解カード・強調テロップ](samples/yukkuri-scenes.jpg)
 
-→ [MP4（720p・約100秒）](samples/yukkuri.mp4)
+→ [MP4 をダウンロード（720p・約100秒・音あり・5.1MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4)
 
 頼み方の例:
 
