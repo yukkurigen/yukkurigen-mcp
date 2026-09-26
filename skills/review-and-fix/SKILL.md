@@ -22,7 +22,7 @@ update_lines                              # 直す行だけ渡す
 generate_audio                            # 文を変えた行の音声を作り直す
   （同じ共有リンクが新しい内容を映す。作り直さなくてよい）
 render_mp4 { preview:{fromLine, toLine} } # 直した所だけ 1クレジットで確認（任意）
-render_mp4                                # 本番 5クレジット
+render_mp4                                # 本番（動画1分につき1クレジット）
 ```
 
 ## 直し方
