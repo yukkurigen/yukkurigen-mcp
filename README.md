@@ -88,7 +88,7 @@ VOICEVOX の音声は「VOICEVOX:キャラ名」の表記が利用条件。動�
 | [your-images](skills/your-images/SKILL.md) | 自分の画像を行ごとに好きな位置・大きさで出す／背景を差し替える | ![](samples/your-images.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4) |
 | [batch-production](skills/batch-production/SKILL.md) | 最大20本を1回でまとめて作る | [3本の例（画像）](samples/batch.jpg) |
 | [review-and-fix](skills/review-and-fix/SKILL.md) | 焼く前に共有リンクで見せ、指定の行だけ直す（消費なし） | [共有リンクの画面](samples/review-share.jpg) |
-| [own-character](skills/own-character/SKILL.md) | 自分のキャラ（PSD・PNG）を話者にする | 準備中 |
+| [own-character](skills/own-character/SKILL.md) | 自分のキャラ（PSD・PNG）を話者にする。画像生成 AI で作ったキャラも PSD にすれば喋る | ![](samples/own-character.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4) [PSD の見本](samples/minamo.psd) |
 | [youtube-upload](skills/youtube-upload/SKILL.md) | 焼いた動画を自分の YouTube へ投稿（既定は非公開） | — |
 
 アカウントの無いまま呼ぶと、会員登録（無料・月10クレジット）の URL 付きで `signup_required` が返る。
