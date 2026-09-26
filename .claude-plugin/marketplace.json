@@ -1,0 +1,15 @@
+{
+  "name": "yukkurigen",
+  "owner": {
+    "name": "YukkuriGen (Finady)",
+    "url": "https://yukkurigen.com"
+  },
+  "description": "YukkuriGen 公式。AI から、ゆっくり解説・ずんだもん解説の動画（MP4）を作るプラグイン。",
+  "plugins": [
+    {
+      "name": "yukkurigen",
+      "source": "./",
+      "description": "ゆっくり解説・ずんだもん解説の動画を AI から作る。2.5D の掛け合い・自分の PSD キャラ・図解・縦型ショート・量産・YouTube 投稿のスキル付き。"
+    }
+  ]
+}

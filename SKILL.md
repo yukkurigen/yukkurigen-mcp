@@ -41,6 +41,9 @@
 | 投稿ジョブの状態 | `get_youtube_upload` | `GET /api/v1/projects/{id}/upload/{jobId}` |
 
 | 見た目の一覧 | `list_templates` | `GET /api/v1/agent/templates` |
+| 見た目を複製する（位置を直す前に） | `copy_template` | `POST /api/v1/agent/templates/copy` |
+| キャラ・字幕・素材の位置を直す | `update_template_layout` | `PATCH /api/v1/agent/templates/{templateId}/layout` |
+| 作った動画の見た目を差し替える | `set_project_template` | `PUT /api/v1/projects/{id}/template` |
 | チャンネルの一覧 | `list_channels` | `GET /api/v1/channels` |
 | 既存プロジェクトを MP4 に | `render_mp4` | `POST /api/v1/projects/{id}/render` |
 | レンダー進捗/出力URL | `get_render` | `GET /api/v1/projects/{id}/render/{renderId}/progress` |
@@ -69,8 +72,9 @@
 **音声を作る前にリンクを渡さないこと**——無音で再生され、確認にならない。
 
 `generate_audio` は**引数なしで呼べる**（音声が無い行すべてが対象）。REST を
-直接叩くときも本文は空 `{}` でよい。特定の行だけ作り直したいときだけ、
-`get_project` が返す行の id を `lineIds` に並べて `force: true` を付ける。
+直接叩くときも本文は空 `{}` でよい。特定の行だけ作り直したいときは、
+**MCP なら `lineIndexes`（行番号）**、**REST なら `lineIds`（REST の `GET /projects/{id}` が返す `lines[].id`）**に
+並べて `force: true` を付ける（MCP の `get_project` は行の id を返さない。行番号で指定する）。
 
 ### 非同期ジョブ（Prefer: respond-async）
 
@@ -199,7 +203,16 @@ MCP から使うときは何もしなくてよい。
 ### 縦型で作りたいとき
 
 `create_yukkuri_video` の `platform` に `shorts`（または `tiktok`）を渡す。
-既定は `youtube`（横型）。`render_mp4` にも同じ引数がある。
+既定は `youtube`（横型）。**向きは `platform` だけで決まる**（`outputFormat` は `platform` を省いたときの手がかりにしか使わない）。
+
+`platform` は**プロジェクトに残る**。draft で作ったあとや直したあとの `render_mp4` で `platform` を省くと、
+作ったときの向きで焼かれる（`get_project` の `platform` で確かめられる）。向きを変えて焼き直したいときだけ
+`render_mp4` に `platform` を渡す。1クレジットのプレビューと共有リンクも、縦型のプロジェクトは縦型で描かれる。
+
+縦型（1080×1920）は縦の画面いっぱいに組まれる: **上にタイトル（画面の上 約15%）→ 素材（16〜46% あたり）→
+キャラ2人を左右に大きく（46% より下）→ 字幕（74〜90%）**。字幕は横長より大きい。
+縦型では素材を `materialBox` で置くなら **y は 16 以上・y+height は 48 以下**が目安（タイトルと顔を避ける）。
+縦型の配置を直すときは `update_template_layout` に `"aspect":"9:16"`（今の値は `list_templates` の `portraitLayout`）。
 
 ### 見た目の既定はチャンネルに置ける
 
@@ -221,12 +234,16 @@ MCP から使うときは何もしなくてよい。
    一座は東北勢と同じ（ずんだもん等とは一緒に出せる。ゆっくりとは混ぜられない）。`emotions` / `poses` は
    そのキャラに設定済みの表情・ポーズで、無い表情を書いても近い表情か通常の顔で描かれる。
 
-   **見た目（テンプレート）は人が決める。あなたは選ぶだけ。**
-   `list_templates` で一覧を取り、返った `id` を `templateId` に渡す。
-   `source: "system"`（5種）と `source: "mine"`（その人がエディタで作ったもの）の
-   **どちらの id もそのまま渡してよい**。利用者が「いつもの見た目で」と言ったら
-   `source: "mine"` から選ぶこと。**新しく作ろうとしないこと。**
-   省略すれば台本の話者から自動で選ぶので、指定は必須ではない。
+   **テンプレート（見た目）は `list_templates` から選ぶ。** 返った `id` を `templateId` に渡す。
+   省略すれば台本の話者から自動で選ぶので、指定は必須ではない。利用者が「いつもの見た目で」と
+   言ったら `source: "mine"` から選ぶこと。
+   - **話者のいる動画に使える組み込みは `yukkuri-talk`（reimu・marisa）と `tohoku-ahiru-talk`
+     （東北勢・自作キャラ）だけ。** 組み込みは5種あるが、`line-scroll`（コメント型）・`youtube-bgm`（BGM 用）・
+     `story-talk`（いらすとや）は立ち絵の一座が違う
+   - `source: "mine"` は、`basedOn` が台本の一座と同じもの（ゆっくりなら `yukkuri-talk`、東北勢なら
+     `tohoku-ahiru-talk`）を選ぶ。`basedOn` の無い（白紙から作った）テンプレートは立ち絵の検査ができない
+   - 色・字幕の書式は人がテンプレートエディタで決める。**位置（キャラ・字幕・素材の枠）はあなたが直してよい**（下）
+   - 作ったあとにテンプレートを替えるのは `set_project_template`（台本・音声はそのまま）
 
    存在しない id や他人のテンプレートを渡すと `400 template_not_found` を返す
    （課金なし）。**黙って別の見た目で焼くことはしない**——2026-09-09 まではそう
@@ -234,7 +251,25 @@ MCP から使うときは何もしなくてよい。
    焼かれていた。
 
    チャンネル（テーマ・想定視聴者・既定の指示）を使うなら `list_channels` で
-   `id` を取り、`channelId` に渡す。
+   `id` を取り、`channelId` に渡す。**見た目の優先順は「指定した `templateId`（組み込みでも自作でも）＞
+   チャンネルのテンプレート＞台本の話者から自動」。** `list_channels` の `templateId` が、そのチャンネルで
+   指定なしのときに当たるテンプレート。
+
+   **素材の位置と大きさは、行ごとにあなたが決めてよい**（`materialBox`。下の「背景を決める」）。
+
+   **テンプレートの位置を変えたいとき（「キャラを上に」「字幕を上に」「素材の既定の場所を下に」）も、あなたが直せる**:
+   1. `list_templates` で今の `layout`（横長）/ `portraitLayout`（縦型）を読む（キャラの枠・字幕・素材の枠。画面に対する %、x/y は左上）
+   2. 組み込み（`source: "system"`）は直せないので `copy_template` で複製する。`yukkuri-talk` と `tohoku-ahiru-talk` の複製は
+      **元の見た目のまま**描かれ、位置だけが変わる（ほかの3種の複製は見た目も変わる）
+   3. `update_template_layout` で直す（渡した項目だけ変わる。縦型は `"aspect":"9:16"`）。**値は差分ではなく新しい値**
+      （今の値に足した結果を渡す）。例: 素材の既定の枠を下げる（今 y:5 なら）`{"material":{"y":15}}`、
+      キャラを上げる（今 y:4 なら）`{"characters":[{"slot":"left1","y":-2}]}`。
+      東北の立ち絵の枠は画面の下にはみ出している（`y+height>100`）——腰から下を切るための仕様なので、画面に収めようとしないこと（収めるとキャラが小さくなる）
+   4. 作った動画に当てるなら `set_project_template`、これから作るなら `create_yukkuri_video` の `templateId`
+   5. `create_preview_link` の共有リンクで見て、良ければ焼く
+
+   キャラの立ち絵は枠の下端にそろい、枠の高さで大きさが決まる。素材は枠に収まる大きさで枠の上端に出る。
+   色・字幕の書式などの見た目は人がテンプレートエディタ（`https://app.yukkurigen.com/templates`）で決める
 
    **返るのは MP4。** こちらで音声を合成してから本番レンダーを開始し、
    `renderId` を返す（5クレジット・有料プラン）。**`output:"preview"` なら
@@ -255,13 +290,31 @@ MCP から使うときは何もしなくてよい。
 3. **背景を決める**: `backgroundImageUrl`（https のURL）を渡す。
    省略すると既定の背景（室内のイラスト）になる。話題に合う背景を渡すと見栄えが上がる。
    場面転換を付けたいときは、その行の `backgroundImageUrl` に別のURLを入れる（以降の行へ引き継がれる）。
+   利用者が用意した写真・スクショを行ごとに出したいときは、その行の `materialImageUrl`（https）に入れる（その行だけ。`update_lines` でも付け外しできる）。
+   **素材の位置と大きさは、行ごとにあなたが決める**（`materialBox`。画面に対する %、x/y は左上）。
+   省略するとテンプレートの素材の枠（組み込みの横長は上寄りの中央 `{x:23,y:5,width:54,height:60}`）。
+   画像は枠に収まる大きさで、枠の上端・左右中央に出る（縦横比は保つ）。photo・card の画像にも効く。
+   ```json
+   {"title":"写真の置き方","script":[
+    {"speaker":"reimu","text":"この写真を見て。","materialImageUrl":"https://example.com/a.jpg",
+     "materialBox":{"x":35,"y":8,"width":30,"height":35}}]}
+   ```
+   - 横長で**顔にかからないのは x が 20〜83% の間**（左右のキャラの顔はその外側）。字幕は下の約15%。
+     目安: 既定の枠 `{x:23,y:5,width:54,height:60}` / 中央に小さく `{x:35,y:8,width:30,height:35}` /
+     大きく見せる `{x:20,y:3,width:60,height:68}`
+   - 縦型: y は 16 以上・y+height は 48 以下（上のタイトルと下の顔を避ける）。例 `{x:5,y:17,width:90,height:28}`
+   - 値の範囲: x・y は -50〜100、width・height は 0 より大きく 150 まで（外れると 400）
+   - 同じ画像を続けて出す行は同じ値にする（値が変わると、そこで画像が出し直される）。
+     card は `span` 行ぶん、photo は次の行にも続けて出るが、その続く行には元の行の `materialBox` が自動で写る
+   - あとから動かすなら `update_lines` に `{"index":3,"materialBox":{...}}`（`null` でテンプレートの枠に戻す）
    BGM は指定しなくても既定の曲が流れる。
-   `title` は横長の動画の左上にテーマとして出し続ける（途中から見た人にも何の話か分かる）。
-   消したいときは `titleTelop: false`。
+   `title` の出方: 横長は左上に出す。ただし**章の見出し（`chapter`）が1つでもあると、左上は章の見出しになり、
+   タイトルは最初の章より前の行だけに出る**（1行目に章を書くとタイトルは出ない）。縦型は画面の上にタイトルを
+   ずっと出し、章の見出しは出さない。`titleTelop: false` は横長・縦型どちらのタイトルも消す。
    **図解・写真・章・強調はあなたが決める**: サーバは台本から勝手に作らない（こちらで AI を
    呼ばない）。台本を書いたあなたが、行ごとに次の項目を書く。どれも任意で、書いた行にだけ出る。
-   - `chapter`: その行から始まる**章の見出し**（14文字以内）。画面の左上に次の章まで出る。
-     話題の区切りごと、目安は8行に1つ。最初の章は1行目に書く。
+   - `chapter`: その行から始まる**章の見出し**（14文字以内）。横長の画面の左上に次の章まで出る（縦型では出ない）。
+     話題の区切りごと、目安は8行に1つ。タイトルを冒頭に見せたいなら、最初の章は2〜3行目に書く。
    - `card`: **図解カード** `{ "title": "…", "items": ["…","…"], "style": "list" }`。要点のまとめ・
      手順・理由・比較・数字など、図にすると分かりやすい所に（目安: 7行に1枚、最大6枚）。
      `style` は `list`（箇条書き）/ `steps`（番号付きの手順）/ `point`（要点・数字を1つ大きく、項目1つ）。
@@ -272,10 +325,14 @@ MCP から使うときは何もしなくてよい。
      目安: 4行に1枚。Openverse の CC0・パブリックドメインの写真を探して入れる（見つからなければ出ない）。
    - `emphasis`: その行で画面の中央に大きく出す**強調テロップ**（台本にある要の言葉、10文字以内）。
      `"夜のスマホ"` または `{ "text": "危ない", "color": "red" }`（yellow=既定 / red=危険・注意 /
-     blue=冷静・事実 / green=良い・安心）。目安: 6行に1つ。`card`・`photo` の行では出ない。
+     blue=冷静・事実 / green=良い・安心）。目安: 6行に1つ。**素材（materialImageUrl・photo・card の画像）や
+     図解カードが出ている行では出ない**（カードが続く行も含む）。
 
-   カードと写真は焼く直前に画像にして行の**素材**（`material_image_url`）に入れるので、あとから
-   `get_project` で見えて、エディタの素材の列で差し替え・削除できる。
+   カードと写真は、**共有リンクを作るとき（`create_preview_link`）か、焼くとき（プレビュー含む）**に画像にして
+   行の**素材**（`material_image_url`）に入れる。それまでは共有リンクにも出ない。画像にしたあとは `get_project` で
+   見えて、`update_lines` や画面の素材の列で差し替え・削除できる。画像にできなかったカードは、画面の上寄りに重ねて描く。
+   `chapter`・`emphasis`・`card`・`photo`・`effect` は、作ったあとでも `update_lines` で足せる・外せる（`null`）。
+   素材がすでにある行に card・photo を足すと、前の素材は外れて新しい画像に替わる。
 
    ```json
    {"title":"コンビニコーヒーが安い理由","script":[
@@ -288,11 +345,13 @@ MCP から使うときは何もしなくてよい。
    **クレジット**: 完成した `get_render` の結果に、YouTube の概要欄に貼るクレジット（`credits`）が付く。
    VOICEVOX の音声は「VOICEVOX:ずんだもん」のような表記が利用規約の条件なので、**必ず概要欄に入れること**
    （`upload_to_youtube` は自動で足す）。
-4. **カメラを置く**: 盛り上がり・感情のピーク・オチの行に `cameraMode: "dynamic"` を
-   付けると、**背景ごとカメラがその話者に寄る**。立ち絵を消したい行（場面の要約など）は
-   `"summary"`。
-   **2〜4回に留めること。全行に付けると寄りっぱなしになり、寄りが効かなくなる。**
+4. **カメラ（任意）**: 寄りは**入れなくてよい**。入れるなら、盛り上がり・感情のピーク・オチの行に
+   `cameraMode: "dynamic"` を付けると、**背景ごとカメラがその話者に寄る**。立ち絵を消したい行（場面の要約など）は
+   `"summary"`。`null`（または省略）は寄らない。
+   **使うなら2〜4回に留めること。全行に付けると寄りっぱなしになり、寄りが効かなくなる。**
    立ち絵が画面に出ている行にだけ効く。
+   **寄りを一切入れたくないときは、どれか1行に `"cameraMode": null` と書く**（下の自動演出が止まる）。
+   作った後なら `update_lines` で寄っている行を `null` にすれば寄らなくなり、後から自動で付け直されることはない。
    **表情（`emotion`）**: 立ち絵の目・眉・口・顔色・汗や涙の差分を組み合わせた**16種**。どのキャラも全部描ける。
    人気の解説動画は**ほぼ毎行で表情が変わる**ので、セリフの気持ちに合わせて行ごとに変えること
    （同じ表情が3行以上続くと単調に見える）。
@@ -322,14 +381,30 @@ MCP から使うときは何もしなくてよい。
    `think`（あごに手）/ `mouth_cover`（口元に手）/ `whisper`（ひそひそ）/ `shh`（しーっ・秘密）/
    `chest`（胸に手・不安）/ `mic`（マイク）/ `cross_arms`（腕組み・あんこもん）/ `peace`（ピース・つむぎ）/
    `hold`（手を組む・めたん）/ `normal`。省略すると表情ごとの既定の腕（説明なら指さし、怒りなら腰に手 など）。
+   **キャラごとに描けるポーズ**（無いポーズは黙って無視される。`list_characters` の `poses` でも分かる）:
+
+   | キャラ | 描けるポーズ |
+   |---|---|
+   | zundamon | normal, point, wave, cheer, hip, think, mouth_cover, whisper, chest, mic |
+   | metan | normal, point, shh, whisper, mouth_cover, mic, hold |
+   | tsumugi | normal, point, peace, cheer |
+   | anko | normal, point, wave, cheer, hip, think, mouth_cover, shh, cross_arms, mic |
+   | reimu・marisa | なし（腕が無い） |
+   | 自作キャラ | `list_characters` の `poses`（設定したものだけ） |
 
    **効果音（`effect`）**: 例: `"ショック1"`, `"きらーん1"`, `"ひらめく1"`, `"チーン1"`。
 
    **`emotion`・`pose`・`effect`・`cameraMode` は、1行も書かなければセリフの手がかりから自動で付く**
    （「うぅ」→泣き、「どうしよう」→困り、「一つ目」→指さし、「ここだけの話」→しーっ など）。
-   1行でも書いた項目は、書いた指定だけが使われる（自動と混ぜない）。細かく演出したいときは全行に書くとよい。
+   1行でも書いた項目は、書いた指定だけが使われる（自動と混ぜない）。**`null` で「書いた」に数えられるのは
+   `cameraMode` と `effect` だけ**（寄り・効果音を一切入れたくないときに使う）。`emotion`・`pose` に `null` は
+   書けない（400）。表情・ポーズの自動を止めたいなら、どれか1行に値を書く。
+   細かく演出したいときは全行に書くとよい。
+   **自動で付くのは作るとき（`create_yukkuri_video`）の1回だけ。** 作った後に `update_lines` で変えた指定が、
+   自動で上書き・付け直しされることはない。
 5. **生成する**: `create_yukkuri_video`（または `POST /agent/generate`）に `{ title, backgroundImageUrl, script }` を渡す。
    既定で MP4 を焼く。試すだけなら `output: "preview"` を足す（1クレジット・20秒）。
+   MCP の応答には `editorUrl`（画面で台本を開く URL）が入る。下書き（`output: "draft"`）を作ったら、利用者にこの URL を伝えること——画面の一覧から探すより早い。
 6. **受け取る**: `renderId` が返るので `get_render` でポーリングする
    （`jobId` が返ったときは、`get_job` が `succeeded` になってから `result.renderId` を使う）。
    **完了の判定は `done === true` かつ `outputFile` が非空**（下の「レンダーの成否判定」）。
@@ -352,7 +427,8 @@ MCP から使うときは何もしなくてよい。
 3. **音声を作り直す**: `text` / `speaker` / `reading` を変えた行は、**その行の音声が
    無効化される**（応答の `audioInvalidated` に行番号が入る）。古い音声を残すと
    新しい字幕と違うことを喋る動画になるため、こちらで必ず消している。
-   `generate_audio` を呼んで作り直す。
+   `generate_audio` を呼んで作り直す。表情・ポーズ・素材・演出を変えても音声は消えない
+   （ただし表情で声の高さが少し変わるので、合わせたいなら `generate_audio` に `force: true` とその行）。
 4. **安く確かめる**: `render_mp4` に `preview: { fromLine, toLine }` を付けると、
    **1クレジット**・低解像度で**その範囲だけ**焼ける。直した箇所を見るのはこちら。
 5. **出す**: `preview` を付けずに `render_mp4`（5クレジット・全編・本番解像度）。
@@ -407,9 +483,9 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
   `code: "forbidden"`（403、他人のプロジェクトなど対象への権限が無い）、
   `code: "not_found"`（404、projectId / renderId が無い）。
   いずれもクレジットは消費されない。
-- 台本を作るとき（`create_yukkuri_video`）: `code: "cast_mismatch"`（400、一座をまたぐ話者。
-  声は出るが画面に映らない動画になるため、**課金せずに**中断する。`undrawableSpeakers` と
-  `casts` を見て、どちらかの一座に揃える）。
+- `code: "cast_mismatch"`（400）: 一座をまたぐ話者、またはテンプレートで描けない話者。声は出るが画面に
+  映らない動画になるため、**課金せずに**中断する。作るとき（`create_yukkuri_video`）・テンプレートを替えるとき
+  （`set_project_template`）・話者を変えるとき（`update_lines`）に確かめる。`undrawableSpeakers` と `casts` を見て揃える。
 - 台本を直すとき（`update_lines`）: `code: "line_not_found"`（404、その行番号が無い
   ——`get_project` で今の行番号を取り直す）、`code: "duplicate_index"`（400、同じ
   行番号を2回指定した——1回にまとめる）、`code: "unknown_speaker"`（400、知らない
@@ -471,14 +547,12 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
     打ち切らず再試行する。
   - `internal_error` … 一覧取得など、課金を伴わない読み取りが失敗した。
     クレジットは動かない。そのまま再試行してよい。
-- キャラid の打ち間違い: `code: "validation_error"` と **`validSpeakers`（そのリクエストで使えるid一覧）** が返る。
-  未知のidは課金前に400になる（黙って別キャラや立ち絵なしで出力してクレジットだけ
-  消費する、ということはしない）。照合される集合はリクエストによって違う:
-  - `POST /agent/generate`: `speaker` はシステムキャラ（`GET /api/v1/characters`）。
-  - `PATCH /projects/{id}/lines`: **そのプロジェクトの行が使っている character_id**
-    ＋ 自分で作ったカスタムキャラ。
-  返ってきた `validSpeakers` をそのまま使えばよい（システムキャラ一覧だけを見て
-  判断すると、カスタムキャラを誤って除外する）。
+- キャラid の打ち間違い: 未知のidは課金前に400になる（黙って別キャラや立ち絵なしで出力して
+  クレジットだけ消費する、ということはしない）。どちらも**組み込みキャラと本人の自作キャラ**を受ける:
+  - `create_yukkuri_video`（`POST /agent/generate`）: `code: "validation_error"` と `validSpeakers`（組み込みキャラの id）
+  - `update_lines`（`PATCH /projects/{id}/lines`）: `code: "unknown_speaker"` と `knownSpeakers`（組み込みキャラの id）
+  自作キャラの id は `list_characters` の `custom: true` から取る（上の一覧には入っていない）。
+  話者を変えると、変えたあとの話者全員をそのプロジェクトのテンプレートで描けるかも確かめる（描けなければ `cast_mismatch`）。
 - レート上限: `code: "rate_limited"` と **`retryAfter`（秒）**、同値の `Retry-After` ヘッダ。その秒数だけ待って再試行する。
 - **200 が返っても完了とは限らない**: `render_mp4` の 200 は**開始**の応答で、
   常に `status: "rendering"` と `renderId` を返す。`waitForCompletion` は
@@ -714,7 +788,8 @@ MP4 レンダーは数分かかる。`render_mp4` に `callbackUrl` を付ける
 台本以外の指定はすべて任意で、省略すれば既定値になる。openapi.json に
 全項目があるが、よく使うものは:
 
-- `platform` / `outputFormat`: 縦横と用途（youtube / tiktok / shorts）。
+- `platform`: 縦横と用途（youtube / tiktok / shorts）。向きはこれだけで決まる。省略するとプロジェクトに残した向き
+  （`outputFormat` は `platform` を省き、プロジェクトにも向きが無いときの手がかりにしか使わない）。
 - `fontSize` / `titleFontSize`: 字幕とタイトルの文字サイズ。
 - `voicePlaybackRate`: 読み上げ速度（0.5〜2.0）。
 - `bgmVolume`: BGM 音量（0〜1）。
@@ -727,14 +802,15 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
 ## 注意
 
 - **音声はこちらで合成する。** 相手側に YMM4 や VOICEVOX を入れてもらう必要はない。
-- 音声エンジンはキャラごとに決まっている（`list_characters` の `voiceEngine`）。
+- 音声エンジンはキャラごとに決まっている（`list_characters` の `engine`）。
   ゆっくり霊夢・魔理沙は AquesTalk、ずんだもん等は VOICEVOX。
 - **初回は `output: "preview"` で試すこと**（1クレジット・20秒）。本番の
   5クレジットを払う前に、キャラ・背景・カメラが意図どおりか確かめられる。
 - **`create_yukkuri_video`（ジョブで受け付ける形）から MP4 までは、2026-09-25 に本番で最後まで通した**
   （OAuth でつないだ MCP から `create_yukkuri_video` → `get_job` の `succeeded` → `get_render` の完成まで。
-  22行の台本2本）。**まとめて作るバッチ（`create_yukkuri_videos_batch`）は本番未検証**——本番で最後まで
-  通した実績はまだ無い。どちらも、初めての形の台本は**少数の行で試し、`get_render` が
+  22行の台本2本）。まとめて作るバッチ（`create_yukkuri_videos_batch`）は 2026-09-26 に本番で**プレビュー出力（1クレジット）の
+  3本**を最後まで通した。**MP4 出力のバッチは本番未検証**（本番で最後まで通した実績はまだ無い）。
+  どちらも、初めての形の台本は**少数の行で試し、`get_render` が
   `completed` を返すことを確かめてから本番の台本を流すこと。**
   途中で止まる場合は `get_project` で台本を、`generate_audio` で音声を、
   `render_mp4` でレンダーを、と段ごとに切り分けられる。不具合として報告してほしい。

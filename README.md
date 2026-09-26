@@ -11,8 +11,8 @@
   → AI が create_yukkuri_video を呼ぶ（数秒で jobId が返る）
   → AI が get_job で音声合成とレンダー開始を待ち、get_render で MP4 の完成を待つ
   → MP4 の URL が返る
-あなた「もう少しゆっくり喋らせて」
-  → AI が update_lines を呼び直す
+あなた「3行目をもっと驚いた感じに」
+  → AI が update_lines でその行だけ直す（喋る速さは render_mp4 の voicePlaybackRate で焼き直す）
 ```
 
 直すのもこのサイトではなく、AI との会話で行う。
@@ -33,7 +33,7 @@
 
 ![ずんだもんとめたんの解説動画。行ごとに表情と腕のポーズが変わり、図解カードが出る](samples/zunda.gif)
 
-→ [MP4 をダウンロード（720p・約96秒・音あり・6.5MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
+→ [MP4 をダウンロード（720p・約96秒・音あり・6.7MB）](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4)
 
 **霊夢・魔理沙「寝る前のスマホが睡眠を壊す理由」**
 
@@ -73,6 +73,24 @@ VOICEVOX の音声は「VOICEVOX:キャラ名」の表記が利用条件。動�
 クレジットを概要欄に入れること（YukkuriGen から YouTube へ投稿した場合は自動で入る）。
 写真は Openverse で CC0・パブリックドメインのものだけを使っている。
 
+### 機能ごとの作例とスキル
+
+[`skills/`](./skills) に、機能ごとのスキル（AI 向けの手順書）が10本ある。Claude Code ならプラグインとしてまとめて入る（下の「つなぐ」）。
+作例は、どれも AI（Claude）が MCP で作って焼いたものをそのまま載せている（2026-09-26）。
+
+| スキル | できること | 作例 |
+|---|---|---|
+| [yukkuri-video-basics](skills/yukkuri-video-basics/SKILL.md) | 台本から1本作る（霊夢・魔理沙） | [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4) |
+| [dialogue-25d](skills/dialogue-25d/SKILL.md) | ずんだもん×あんこもんの掛け合い。立ち絵が 2.5D で呼吸し、体・しっぽ・頭の飾りが揺れる | ![](samples/dialogue-25d.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/dialogue-25d.mp4) |
+| [explainer-visuals](skills/explainer-visuals/SKILL.md) | 図解カード・写真・章の見出し・強調テロップ | ![](samples/zunda.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4) |
+| [expressions-poses](skills/expressions-poses/SKILL.md) | 表情16種・腕のポーズを行ごとに | [一覧（画像）](samples/expressions.jpg) |
+| [vertical-shorts](skills/vertical-shorts/SKILL.md) | 縦型ショート（9:16）。上にタイトル・素材、下にキャラ2人・字幕 | ![](samples/vertical-shorts.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/vertical-shorts.mp4) |
+| [your-images](skills/your-images/SKILL.md) | 自分の画像を行ごとに好きな位置・大きさで出す／背景を差し替える | ![](samples/your-images.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4) |
+| [batch-production](skills/batch-production/SKILL.md) | 最大20本を1回でまとめて作る | [3本の例（画像）](samples/batch.jpg) |
+| [review-and-fix](skills/review-and-fix/SKILL.md) | 焼く前に共有リンクで見せ、指定の行だけ直す（消費なし） | [共有リンクの画面](samples/review-share.jpg) |
+| [own-character](skills/own-character/SKILL.md) | 自分のキャラ（PSD・PNG）を話者にする | 準備中 |
+| [youtube-upload](skills/youtube-upload/SKILL.md) | 焼いた動画を自分の YouTube へ投稿（既定は非公開） | — |
+
 アカウントの無いまま呼ぶと、会員登録（無料・月10クレジット）の URL 付きで `signup_required` が返る。
 ChatGPT・claude.ai のコネクタなら、つなぐ時に登録と許可の画面が開く。
 
@@ -96,6 +114,15 @@ YukkuriGen の許可画面が開くので「許可する」を押す（OAuth 2.1
 https://app.yukkurigen.com/settings/api-keys
 
 ### Claude Code
+
+プラグインとして入れると、MCP サーバの接続と機能ごとのスキル10本がまとめて入る（接続はブラウザでの許可）:
+
+```
+/plugin marketplace add yukkurigen/yukkurigen-mcp
+/plugin install yukkurigen@yukkurigen
+```
+
+API キーで繋ぐなら:
 
 ```bash
 claude mcp add --transport http yukkurigen https://app.yukkurigen.com/api/mcp \
@@ -191,9 +218,10 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 
 ## AI に読ませるもの
 
-**[SKILL.md](./SKILL.md)** が手順書のすべて。接続、最小例、立ち絵、カメラ、
-クレジット、402 を受けたときの購入導線、冪等キー、バッチ生成、コールバックまで。
+**[SKILL.md](./SKILL.md)** が手順書のすべて。接続、最小例、立ち絵、カメラ、素材の位置、縦型、
+テンプレートの位置の直し方、クレジット、402 を受けたときの購入導線、冪等キー、バッチ生成、コールバックまで。
 `app.yukkurigen.com/skill.md` と同一のファイルで、CI で一致を検査している。
+機能ごとに短く分けたものが [`skills/`](./skills)（上の表）。
 
 ## できること / かかるもの
 
@@ -213,7 +241,7 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 
 - **`create_yukkuri_video`（ジョブで受け付ける形）から MP4 までは、2026-09-25 に本番で通した**
   （OAuth で接続 → `create_yukkuri_video` → `get_job` → `get_render` の完成まで。上の作例がその出力）。
-  **まとめて作るバッチ（`create_yukkuri_videos_batch`）は本番未検証**——本番で最後まで通した実績はまだ無い。
+  まとめて作るバッチ（`create_yukkuri_videos_batch`）は 2026-09-26 に本番で**プレビュー出力（1クレジット）の3本**を最後まで通した。**MP4 出力のバッチは本番未検証**（本番で最後まで通した実績はまだ無い）。
   初めての形の台本は少数の行で試してほしい。途中で止まる場合は段ごとに切り分けられる
   （`get_project` → `generate_audio` → `render_mp4`）。不具合として報告してほしい。
 - **こちらのサーバは AI（LLM）を呼ばない。** 台本・図解・写真の検索語・章・強調を決めるのは、

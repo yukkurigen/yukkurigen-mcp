@@ -1,0 +1,18 @@
+{
+  "name": "yukkurigen",
+  "version": "1.2.0",
+  "description": "台本を渡すと、ゆっくり解説・ずんだもん解説の動画（MP4）が返る。音声・字幕・立ち絵（2.5D で動く）・図解・写真・BGM・効果音まで自動。機能ごとのスキルと MCP サーバの接続設定をまとめて入れる。",
+  "author": {
+    "name": "YukkuriGen (Finady)",
+    "url": "https://yukkurigen.com"
+  },
+  "homepage": "https://yukkurigen.com",
+  "repository": "https://github.com/yukkurigen/yukkurigen-mcp",
+  "license": "MIT",
+  "mcpServers": {
+    "yukkurigen": {
+      "type": "http",
+      "url": "https://app.yukkurigen.com/api/mcp"
+    }
+  }
+}
