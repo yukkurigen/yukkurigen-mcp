@@ -36,5 +36,5 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/vertical-shorts.mp
 
 ## 知っておくこと
 
-- 同じ台本を横型と縦型の両方で出したいときは、横型で作ったあと `render_mp4` に `platform: "shorts"` を付けてもう一度焼く（もう5クレジット）
+- 同じ台本を横型と縦型の両方で出したいときは、横型で作ったあと `render_mp4` に `platform: "shorts"` を付けてもう一度焼く（もう一度、動画の長さぶんのクレジット）
 - 立ち絵・表情・2.5D の動きは横型と同じように効く
