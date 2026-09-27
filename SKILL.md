@@ -7,12 +7,11 @@
 ## 接続
 
 - 発行: ユーザーに `https://app.yukkurigen.com/settings/api-keys` でAPIキーを発行してもらう（コネクタから OAuth でつなぐなら不要）。
-  **無料プランでもここまで使える**（無料枠10クレジット）:
-  - 台本の作成・読み返し・修正（`create_yukkuri_video` のプロジェクト作成部分、
-    `get_project`、`update_lines`、`generate_audio`）——**すべて消費なし**
-  - **MP4 プレビュー**（`output:"preview"` または `render_mp4` + `preview`。
-    1クレジット・640×360・最大20秒＝10回ぶん）
-    ——まず動くものを見せたいときはこれを使う。
+  **無料プランでもここまで使える**（すべて0クレジット）:
+  - 台本の作成・読み返し・修正（`create_yukkuri_video` の `output:"draft"`、
+    `get_project`、`update_lines`、`generate_audio`）
+  - **共有リンク**（`create_preview_link`）——全編を音つきで、ログイン無しに見られる。
+    まず動くものを見せたいときはこれを使う。
   - 本番の MP4 レンダー（全編・本番解像度・**動画1分につき1クレジット**、端数切り上げ）だけは有料プラン
     〈スタンダード以上〉または買い切りライセンスが必要。`402 plan_required` が返る
     ——そのときは下の「支払いが要るとき」に従って購入まで案内する。
@@ -52,7 +51,8 @@
 
 `list_projects` / `get_project` / `update_lines` / `generate_audio` /
 `create_preview_link` は**消費なし**。
-確認用プレビュー（`output:"preview"` / `render_mp4` + `preview`）は**1クレジット**。
+焼く前の確認は共有リンク（`create_preview_link`）だけ。低解像度の MP4 プレビュー（`output:"preview"` /
+`render_mp4` の `preview`）は 2026-09-27 に廃止した（`render_mp4` の `preview` は 410 `preview_removed`、`output:"preview"` は 400 `validation_error`。どちらも課金なし）。
 本番の MP4 は**動画の長さで決まる**: 1分につき1クレジット（端数は切り上げ。30秒でも1、2分10秒なら3）。
 BGM の生成（`POST /api/v1/projects/{projectId}/bgm/generate`）は2。
 課金はレンダーだけで起きる。直すこと自体にお金がかからないので、ユーザーが
@@ -107,14 +107,14 @@ Header: `Preference-Applied: respond-async`
 `Preference-Applied` なしの 202 と `jobId` を返す。**202 が返りうるものとして扱うこと。**
 同期で処理されたときは `Idempotency-Key` が効かず、台本・BGM は投げ直した分だけ課金される。
 
-MCP では `generate_audio` と `create_yukkuri_video`（mp4 / preview）と
+MCP では `generate_audio` と `create_yukkuri_video`（mp4）と
 `create_yukkuri_videos_batch`（下の「大量に作る」）のツールが自動的に
 この非同期パスを使い、jobId を返す。`get_job` ツールで追う（サーバの設定によっては
 ジョブにならず、同期で待ってから結果を返す）。
 
 #### 台本→MP4 の一括生成もジョブで受け付ける
 
-`create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` / `"preview"` も、
+`create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` も、
 `Prefer: respond-async` を付けるとジョブになる（サーバの設定によっては付けてもジョブにならず、
 同期で待ってから 200 と `renderId` を返す）。
 `output:"draft"` は常に同期。**MCP の `create_yukkuri_video` は自分でこれを付ける**ので、
@@ -182,7 +182,7 @@ MCP から使うときは何もしなくてよい。
 
 ### 応答が返らないときのために（重要）
 
-`create_yukkuri_video` の `mp4` / `preview` を**同期で**呼ぶと、**音声合成とレンダー開始を
+`create_yukkuri_video` の `mp4` を**同期で**呼ぶと、**音声合成とレンダー開始を
 待ってから返る**。10行の台本で45秒を超えることがあり、クライアントによっては
 そこで切れる。切れても**サーバ側では課金もレンダーも進んでいる**ので、
 何もせず投げ直すと二重に払うことになる。
@@ -210,7 +210,7 @@ MCP から使うときは何もしなくてよい。
 
 `platform` は**プロジェクトに残る**。draft で作ったあとや直したあとの `render_mp4` で `platform` を省くと、
 作ったときの向きで焼かれる（`get_project` の `platform` で確かめられる）。向きを変えて焼き直したいときだけ
-`render_mp4` に `platform` を渡す。1クレジットのプレビューと共有リンクも、縦型のプロジェクトは縦型で描かれる。
+`render_mp4` に `platform` を渡す。共有リンクも、縦型のプロジェクトは縦型で描かれる。
 
 縦型（1080×1920）は縦の画面いっぱいに組まれる: **上にタイトル（画面の上 約15%）→ 素材（16〜46% あたり）→
 キャラ2人を左右に大きく（46% より下）→ 字幕（74〜90%）**。字幕は横長より大きい。
@@ -275,8 +275,8 @@ MCP から使うときは何もしなくてよい。
    色・字幕の書式などの見た目は人がテンプレートエディタ（`https://app.yukkurigen.com/templates`）で決める
 
    **返るのは MP4。** こちらで音声を合成してから本番レンダーを開始し、
-   `renderId` を返す（動画1分につき1クレジット・有料プラン）。**`output:"preview"` なら
-   1クレジット・低解像度・20秒**で、無料プランでも動くものが見られる。
+   `renderId` を返す（動画1分につき1クレジット・有料プラン）。焼く前に見せたいなら `output:"draft"` で作り、
+   `create_preview_link` の共有リンクを渡す（0クレジット・無料プランでも可）。
    ジョブで受け付けたとき（MCP など）は先に `jobId` が返り、`get_job` の
    `result.renderId` で受け取る（上の「非同期ジョブ」）。
    どちらも最後は `get_render` でポーリングする。
@@ -307,6 +307,9 @@ MCP から使うときは何もしなくてよい。
      大きく見せる `{x:20,y:3,width:60,height:68}`
    - 縦型: y は 16 以上・y+height は 48 以下（上のタイトルと下の顔を避ける）。例 `{x:5,y:17,width:90,height:28}`
    - 値の範囲: x・y は -50〜100、width・height は 0 より大きく 150 まで（外れると 400）
+   - **画面全体を覆う素材**は `{x:0,y:0,width:100,height:100}`（16:9 の画像なら画面いっぱい）。
+     この行ではキャラは**寄らず元の位置のまま**、素材の後ろに隠れる（素材は既定でキャラより前）。
+     全画面でない素材の行は、キャラが少し外側へ寄って画面を空ける
    - 同じ画像を続けて出す行は同じ値にする（値が変わると、そこで画像が出し直される）。
      card は `span` 行ぶん、photo は次の行にも続けて出るが、その続く行には元の行の `materialBox` が自動で写る
    - あとから動かすなら `update_lines` に `{"index":3,"materialBox":{...}}`（`null` でテンプレートの枠に戻す）
@@ -406,7 +409,7 @@ MCP から使うときは何もしなくてよい。
    **自動で付くのは作るとき（`create_yukkuri_video`）の1回だけ。** 作った後に `update_lines` で変えた指定が、
    自動で上書き・付け直しされることはない。
 5. **生成する**: `create_yukkuri_video`（または `POST /agent/generate`）に `{ title, backgroundImageUrl, script }` を渡す。
-   既定で MP4 を焼く。試すだけなら `output: "preview"` を足す（1クレジット・20秒）。
+   既定で MP4 を焼く。試すだけなら `output: "draft"` で作って `create_preview_link`（0クレジット・全編・音つき）。
    MCP の応答には `editorUrl`（画面で台本を開く URL）が入る。下書き（`output: "draft"`）を作ったら、利用者にこの URL を伝えること——画面の一覧から探すより早い。
 6. **受け取る**: `renderId` が返るので `get_render` でポーリングする
    （`jobId` が返ったときは、`get_job` が `succeeded` になってから `result.renderId` を使う）。
@@ -432,9 +435,8 @@ MCP から使うときは何もしなくてよい。
    新しい字幕と違うことを喋る動画になるため、こちらで必ず消している。
    `generate_audio` を呼んで作り直す。表情・ポーズ・素材・演出を変えても音声は消えない
    （ただし表情で声の高さが少し変わるので、合わせたいなら `generate_audio` に `force: true` とその行）。
-4. **安く確かめる**: `render_mp4` に `preview: { fromLine, toLine }` を付けると、
-   **1クレジット**・低解像度で**その範囲だけ**焼ける。直した箇所を見るのはこちら。
-5. **出す**: `preview` を付けずに `render_mp4`（動画1分につき1クレジット・全編・本番解像度）。
+4. **確かめる**: `create_preview_link` の共有リンクで、直した箇所を**0クレジット**・全編・音つきで見せる。
+5. **出す**: `render_mp4`（動画1分につき1クレジット・全編・本番解像度）。
 
 台本を作り直す（`create_yukkuri_video` をもう一度呼ぶ）のは最後の手段。
 ユーザーが良いと言った行まで消えるうえ、レンダーにもう一度課金される。
@@ -476,9 +478,9 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 
 ## クレジットとエラー
 
-- 消費: MP4 レンダー = 動画1分につき1（端数切り上げ）、プレビュー = 1、BGM 生成 = 2。台本の作成・修正・音声生成・共有リンクは 0。
+- 消費: MP4 レンダー = 動画1分につき1（端数切り上げ）、BGM 生成 = 2。台本の作成・修正・音声生成・共有リンクは 0。
   `create_yukkuri_video`（mp4）は受け付けで台本の文字数から多めに見積もって押さえ、音声を作ったあと実際の長さで精算する。
-  月の枠はスタンダード100・プロ300（1分の動画ならそれぞれ100本・300本）。
+  月の枠はフリー0・スタンダード100・プロ300（1分の動画ならそれぞれ100本・300本）。
   台本はあなた（呼び出し側の AI）が書く。YukkuriGen のサーバは AI（LLM）を呼ばない。
 - 不足時: `code: "insufficient_credits"` / `code: "plan_required"`。**諦めずに購入まで案内すること**（下の「支払いが要るとき」）。
 - 権限不足: `code: "insufficient_scope"`。キーのスコープを確認。
@@ -649,7 +651,7 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 安くならない）。結果は `results` に1件ずつ index 順に並ぶ（同期なら 200 の応答そのもの、
 ジョブで受け付けたなら `get_job` の `result`。下の「バッチもジョブで受け付ける」）:
 
-- mp4 / preview の件は `projectId` と `renderId`（ジョブで受け付けたなら、その件のジョブの
+- mp4 の件は `projectId` と `renderId`（ジョブで受け付けたなら、その件のジョブの
   `jobId` も）が入る。`renderId` は**レンダーの開始まで済んだ**という意味で、動画はまだ焼いている
   途中——`projectId` と一緒に `get_render` に渡して完成を待つ。draft の件は `renderId` が無い。
 - `status` はその件の HTTP ステータス（整数。単発の `create_yukkuri_video` を呼んだときと同じ）。
@@ -699,7 +701,7 @@ BGM は既定のものが入る。差し替えたい場合はエディタで設�
 - **202 には `results` が入らない。** まだ1本も作っていない。クレジットも押さえておらず、
   各件を作り始めるときにその件の分を押さえる。
 - 受け付けでその場に返るもの（何も作られない）: 認証（401）、1件目のスコープ不足と、どの件に
-  要るスコープも持っていない場合（403 `insufficient_scope`。mp4 / preview は `render:mp4` と
+  要るスコープも持っていない場合（403 `insufficient_scope`。mp4 は `render:mp4` と
   `audio:generate`、draft は `projects:write`）、本文の合計が 4 MiB を超える（400
   `validation_error`。1件で 512 KiB を超える件は、その件だけが結果で 400 になる）、レート上限
   （429 `rate_limited`。受け付け1回ごとに数える）、進行中（queued / running）のバッチが同じ
@@ -809,11 +811,11 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
 - **音声はこちらで合成する。** 相手側に YMM4 や VOICEVOX を入れてもらう必要はない。
 - 音声エンジンはキャラごとに決まっている（`list_characters` の `engine`）。
   ゆっくり霊夢・魔理沙は AquesTalk、ずんだもん等は VOICEVOX。
-- **初回は `output: "preview"` で試すこと**（1クレジット・20秒）。本番の
+- **初回は `output: "draft"` で作り、`create_preview_link` の共有リンクで確かめること**（0クレジット）。
   本番のクレジット（動画1分につき1）を払う前に、キャラ・背景・カメラが意図どおりか確かめられる。
 - **`create_yukkuri_video`（ジョブで受け付ける形）から MP4 までは、2026-09-25 に本番で最後まで通した**
   （OAuth でつないだ MCP から `create_yukkuri_video` → `get_job` の `succeeded` → `get_render` の完成まで。
-  22行の台本2本）。まとめて作るバッチ（`create_yukkuri_videos_batch`）は 2026-09-26 に本番で**プレビュー出力（1クレジット）の
+  22行の台本2本）。まとめて作るバッチ（`create_yukkuri_videos_batch`）は 2026-09-26 に本番で**プレビュー出力（当時あった1クレジットの低解像度 MP4。2026-09-27 に廃止）の
   3本**を最後まで通した。**MP4 出力のバッチは本番未検証**（本番で最後まで通した実績はまだ無い）。
   どちらも、初めての形の台本は**少数の行で試し、`get_render` が
   `completed` を返すことを確かめてから本番の台本を流すこと。**
@@ -841,7 +843,7 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
   返金を意味しない（作り始めた件は課金されたまま進む）。失敗したバッチには `GET /api/v1/jobs/{jobId}` が
   `partialResults`（作り始めた件・投げ直してよい件の番号・同じ prefix で全件を投げ直せる期限）を付ける。
   同じ prefix の投げ直しで二重に作られないのは、その件が終わってから 24 時間以内だけ。サーバの設定に
-  よっては、進行中のバッチが次の件の前に `jobs_paused` で打ち切られる。`results[].status` は整数で、mp4 / preview の
+  よっては、進行中のバッチが次の件の前に `jobs_paused` で打ち切られる。`results[].status` は整数で、mp4 の
   件には同期でも `renderId` が入るようにした（ジョブで受け付けたなら `jobId` も）。
 
 - **2026-09-15**: `create_yukkuri_video`（`POST /api/v1/agent/generate`）の `output:"mp4"` /

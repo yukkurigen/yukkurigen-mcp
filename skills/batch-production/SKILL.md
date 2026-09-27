@@ -7,7 +7,7 @@ description: 複数本のゆっくり・ずんだもん動画を1回の呼び出
 
 `create_yukkuri_videos_batch` に最大20件をまとめて渡す。各件は `create_yukkuri_video` と**まったく同じ形**。
 
-作例（ゆっくり霊夢・魔理沙の3本を1回で。確認用プレビュー）:
+作例（ゆっくり霊夢・魔理沙の3本を1回で）:
 https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/batch.jpg
 
 ## 手順
@@ -35,5 +35,5 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/batch.jpg
 
 ## 知っておくこと
 
-- 最初の1本は `output: "preview"` で見た目を確かめてから、本番の件を流す
+- 最初の1本は `output: "draft"` で作って共有リンク（`create_preview_link`）で見た目を確かめてから、本番の件を流す
 - 同時に進められるバッチは2件まで

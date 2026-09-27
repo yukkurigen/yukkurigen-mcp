@@ -18,7 +18,7 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/dialogue-25d.mp4
 2. 2人の掛け合いにする。聞き手の顔も動くので、**ボケとツッコミ**の形が映える
 3. 行ごとに **`emotion`（16種）と `pose`（腕の形）** を書くと、表情と身振りが変わる（→ スキル `expressions-poses`）
 4. （任意）盛り上がりの 2〜4行に `cameraMode: "dynamic"`（カメラが話者に寄る）。寄りが要らなければどれか1行に `"cameraMode": null`
-5. `create_yukkuri_video` で焼く（最初は `output: "preview"` で確認してよい）
+5. `create_yukkuri_video` で焼く（最初は `output: "draft"` で作り、共有リンクで確認してよい）
 
 ```json
 {"title":"ずんだ餅とおはぎ、どっちが最強？","idempotencyKey":"zunda-vs-ohagi-1",

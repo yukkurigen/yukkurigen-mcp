@@ -18,7 +18,7 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4
 ```
 
 - 図解カード（`card`）や写真（`photo`）より優先される
-- 画像が出ている間、キャラは少し外側へ寄って画面を空ける
+- 画像が出ている間、キャラは少し外側へ寄って画面を空ける（全画面の素材の行は寄らない。下の `materialBox`）
 
 ## 位置と大きさ `materialBox`（あなたが決める）
 
@@ -33,6 +33,8 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4
   中央に小さく `{x:35,y:8,width:30,height:35}` / 大きく `{x:20,y:3,width:60,height:68}`
 - 値の範囲: x・y は -50〜100、width・height は 0 より大きく 150 まで（外れると 400）
 - 縦型: y は 16 以上・y+height は 48 以下（タイトルと顔を避ける）
+- 画面全体を覆うなら `{x:0,y:0,width:100,height:100}`（16:9 の画像で画面いっぱい）。この行ではキャラは寄らず元の位置のまま、
+  素材の後ろに隠れる
 - 字幕（下の約15%）と話者の顔にかからない所を選ぶ。同じ画像を続けて出す行は同じ値にする
 - あとから動かす: `update_lines` に `{"index":3,"materialBox":{...}}`（`null` でテンプレートの枠に戻す）
 
