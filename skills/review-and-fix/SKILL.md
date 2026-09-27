@@ -18,15 +18,18 @@ generate_audio                            # 消費なし（引数なしで、音
 create_preview_link                       # 消費なし。返った URL を利用者に渡す
   （利用者の「ここを直して」）
 get_project                               # 今の台本を行番号つきで読む
-update_lines                              # 直す行だけ渡す
-generate_audio                            # 文を変えた行の音声を作り直す
+update_lines                              # 直す行だけ渡す（行数は変わらない）
+insert_lines                              # 行を追加したいとき（行番号が再割り当てされる）
+split_line                                # 1行を複数に分けたいとき
+delete_lines                              # 行を消したいとき
+generate_audio                            # 文を変えた行・新規行の音声を作る
   （同じ共有リンクが新しい内容を映す。作り直さなくてよい）
 render_mp4                                # 本番（動画1分につき1クレジット）
 ```
 
 ## 直し方
 
-- `update_lines` には**変える行だけ**を渡す。渡さなかった行は一切変わらない
+- `update_lines` には**変える行だけ**を渡す。渡さなかった行は一切変わらない。行数を変えたいときは `insert_lines` / `split_line` / `delete_lines` を使う（いずれも行番号が再割り当てされる。終わったら `get_project` で最新の行番号を確認する）
 
 ```json
 {"edits":[{"index":3,"text":"実は理由はもっと単純なのだ","emotion":"smug"},

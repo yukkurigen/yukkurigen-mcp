@@ -43,8 +43,21 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4
 - 動画全体の背景: `create_yukkuri_video` の `backgroundImageUrl`（https の画像か動画）。省略すると室内のイラスト
 - 場面転換: その行の `backgroundImageUrl`。**以降の行へ引き継がれる**
 
+## 期限付き URL の永続化（`import_images`）
+
+画像生成サービスの出力 URL など、**期限が切れる URL** を materialImageUrl に使いたいときは
+`import_images` で YukkuriGen のストレージへ取り込む。返ってきた永続 URL を代わりに使う。
+
+```json
+{ "urls": ["https://dalle-output.example.com/tmp/abc123.png"], "type": "material" }
+```
+
+- png / jpeg / webp・1件最大 10MB・最大 20件/回
+- クレジット消費なし
+- 期限の切れない公開 https URL はそのまま materialImageUrl に書いてよい（取り込み不要）
+
 ## 注意
 
 - **https のみ**。内部アドレスや http は 400（課金なし）で断る
-- 画像はレンダーのときに取りに行くので、**ログインが要る URL や期限の短い URL は使わない**
+- 画像はレンダーのときに取りに行くので、**ログインが要る URL や期限の短い URL は `import_images` で取り込むこと**
 - 利用者の画像の権利（使ってよいか）は利用者に確認する

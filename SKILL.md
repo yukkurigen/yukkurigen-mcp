@@ -33,6 +33,9 @@
 | プロジェクト一覧 | `list_projects` | `GET /api/v1/projects` |
 | 台本を読み返す（行番号つき） | `get_project` | `GET /api/v1/projects/{id}` |
 | 指定した行だけ直す | `update_lines` | `PATCH /api/v1/projects/{id}/lines` |
+| 行を挿入する | `insert_lines` | `POST /api/v1/projects/{id}/lines/insert` |
+| 行を分割する | `split_line` | `POST /api/v1/projects/{id}/lines/split` |
+| 行を削除する | `delete_lines` | `POST /api/v1/projects/{id}/lines/delete` |
 | 音声を作る（MP4の前に必須） | `generate_audio` | `POST /api/v1/projects/{id}/audio/generate` |
 | 非同期ジョブの状態取得 | `get_job` | `GET /api/v1/jobs/{jobId}` |
 | **焼く前に人へ見せる共有リンク** | `create_preview_link` | `POST /api/v1/projects/{id}/preview-link` |
@@ -48,9 +51,11 @@
 | レンダー進捗/出力URL | `get_render` | `GET /api/v1/projects/{id}/render/{renderId}/progress` |
 | 決済リンクを出す（402のとき） | `create_checkout` | `POST /api/v1/billing/checkout-link` |
 | 支払いが済んだか確認 | `get_checkout` | `GET /api/v1/billing/checkout-link/{sessionId}` |
+| 画像を取り込む（期限付きURLを永続化） | `import_images` | `POST /api/v1/assets/import` |
 
-`list_projects` / `get_project` / `update_lines` / `generate_audio` /
-`create_preview_link` は**消費なし**。
+`list_projects` / `get_project` / `update_lines` / `insert_lines` /
+`split_line` / `delete_lines` / `generate_audio` /
+`create_preview_link` / `import_images` は**消費なし**。
 焼く前の確認は共有リンク（`create_preview_link`）だけ。低解像度の MP4 プレビュー（`output:"preview"` /
 `render_mp4` の `preview`）は 2026-09-27 に廃止した（`render_mp4` の `preview` は 410 `preview_removed`、`output:"preview"` は 400 `validation_error`。どちらも課金なし）。
 本番の MP4 は**動画の長さで決まる**: 1分につき1クレジット（端数は切り上げ。30秒でも1、2分10秒なら3）。
@@ -267,7 +272,8 @@ MCP から使うときは何もしなくてよい。
    3. `update_template_layout` で直す（渡した項目だけ変わる。縦型は `"aspect":"9:16"`）。**値は差分ではなく新しい値**
       （今の値に足した結果を渡す）。例: 素材の既定の枠を下げる（今 y:5 なら）`{"material":{"y":15}}`、
       キャラを上げる（今 y:4 なら）`{"characters":[{"slot":"left1","y":-2}]}`。
-      東北の立ち絵の枠は画面の下にはみ出している（`y+height>100`）——腰から下を切るための仕様なので、画面に収めようとしないこと（収めるとキャラが小さくなる）
+      東北の立ち絵の枠は画面の下にはみ出している（`y+height>100`）——腰から下を切るための仕様なので、画面に収めようとしないこと（収めるとキャラが小さくなる）。
+      **キャラを常に定位置に固定したいとき**は `{"keepCharactersInPlace":true}` を渡す（全画面素材と card 行だけの動画向け）。今の値は `layout.keepCharactersInPlace`。
    4. 作った動画に当てるなら `set_project_template`、これから作るなら `create_yukkuri_video` の `templateId`
    5. `create_preview_link` の共有リンクで見て、良ければ焼く
 
@@ -287,7 +293,7 @@ MCP から使うときは何もしなくてよい。
    - **YouTube で伸びている解説動画の形**（2026-09 に人気動画と見比べた）: 5〜10分（60〜150行）。
      最初の3行で「え、そうなの？」と思わせる引き（意外な結論・問いかけ）→ 章ごとに1つの話題
      （1章 10〜25行）→ 最後に要点のおさらい → 「チャンネル登録してね」の一言で締める。
-     1行は40文字前後まで（長いと字幕が3行になる）。聞き手のツッコミ・驚きを数行ごとに挟む。
+     1行は60文字以内が目安（テンプレートの字幕ボックスで通常サイズに収まる上限）。60〜87文字だとフォントが自動縮小、88文字以上だと下限サイズでも収まらない可能性がある。`get_project` の応答に `subtitleWarnings` が含まれる場合は、その行を分割か短縮すること。聞き手のツッコミ・驚きを数行ごとに挟む。
    - **章の見出し・強調テロップ・写真・図解は、あなたが行ごとに書く**（下の「図解・写真・章・強調はあなたが決める」）。
      書かなければ出ない——YouTube で伸びている解説動画はどれも入れているので、必ず書くこと。
 3. **背景を決める**: `backgroundImageUrl`（https のURL）を渡す。
@@ -309,7 +315,7 @@ MCP から使うときは何もしなくてよい。
    - 値の範囲: x・y は -50〜100、width・height は 0 より大きく 150 まで（外れると 400）
    - **画面全体を覆う素材**は `{x:0,y:0,width:100,height:100}`（16:9 の画像なら画面いっぱい）。
      この行ではキャラは**寄らず元の位置のまま**、素材の後ろに隠れる（素材は既定でキャラより前）。
-     全画面でない素材の行は、キャラが少し外側へ寄って画面を空ける
+     全画面でない素材の行は、キャラが少し外側へ寄って画面を空ける（テンプレートに `keepCharactersInPlace:true` を設定すると常に寄せない）
    - 同じ画像を続けて出す行は同じ値にする（値が変わると、そこで画像が出し直される）。
      card は `span` 行ぶん、photo は次の行にも続けて出るが、その続く行には元の行の `materialBox` が自動で写る
    - あとから動かすなら `update_lines` に `{"index":3,"materialBox":{...}}`（`null` でテンプレートの枠に戻す）
@@ -424,12 +430,22 @@ MCP から使うときは何もしなくてよい。
 
 1. **読む**: `get_project` で今の台本を行番号つきで受け取る。何行目を直すのかを
    ユーザーの言葉から特定する。
+   応答に `subtitleWarnings` が含まれる場合は、字幕が長すぎる行がある。
+   `fits: "shrunk"` = フォントを自動縮小して表示（見栄えが下がる）、`fits: "overflow"` = 下限でも収まらず画面外にはみ出す。
+   どちらも `suggestion` に書いてある文字数以内に収めるよう `update_lines` で分割か短縮すること。
 2. **直す**: `update_lines` に**変える行だけ**を渡す。渡さなかった行は一切変わらない
    ので、ユーザーが気に入っている部分を壊す心配がない。
    ```json
    { "edits": [ { "index": 3, "text": "実は理由はもっと単純なのだ" },
                 { "index": 5, "backgroundImageUrl": "https://example.com/bg2.jpg" } ] }
    ```
+   行数を変えたい場合は専用ツールを使う:
+   - **`insert_lines`**: `after` (挿入位置の前の行番号、-1 で先頭) と `lines` (行データ配列) を渡す。
+     挿入後、後続の行番号がすべて再割り当てされる。`get_project` で最新の行番号を確認すること。
+   - **`split_line`**: `index` (分割する行番号) と `parts` (分割後の各パーツ) を渡す。
+     `materialImageUrl`/`materialBox` は全パーツに引き継がれる。`chapter`/`effect`/`emphasis`/`card` は先頭パーツのみ。
+   - **`delete_lines`**: `indexes` (削除する行番号の配列) を渡す。全行削除は不可。
+     削除後、残った行の番号が再割り当てされる。
 3. **音声を作り直す**: `text` / `speaker` / `reading` を変えた行は、**その行の音声が
    無効化される**（応答の `audioInvalidated` に行番号が入る）。古い音声を残すと
    新しい字幕と違うことを喋る動画になるため、こちらで必ず消している。
@@ -449,8 +465,9 @@ MCP から使うときは何もしなくてよい。
 入っているので、`generate_audio` を呼んでから再実行する。
 
 `create_yukkuri_video` は**中で音声まで作る**ので、この手順は要らない。
-`get_project` → `update_lines` で直したあと `render_mp4` を呼ぶときだけ、
-自分で `generate_audio` を挟む必要がある。
+`get_project` → `update_lines` / `insert_lines` / `split_line` / `delete_lines` で直したあと
+`render_mp4` を呼ぶときだけ、自分で `generate_audio` を挟む必要がある。
+`insert_lines` と `split_line` が返す `needsAudio` 配列に音声が必要な行番号が入っている。
 
 ## 最小例（REST）
 
@@ -806,6 +823,28 @@ MP4 レンダーは数分かかる。`render_mp4` に `callbackUrl` を付ける
 MCP のツール定義と openapi は同じ集合を公開している。片方にしか無い
 項目があれば、それは不具合として扱ってよい。
 
+## 画像を取り込む（`import_images` / `POST /api/v1/assets/import`）
+
+画像生成サービスの出力 URL など、**期限付きまたは再配布できない URL** を動画に使いたいときに
+YukkuriGen のアセットストレージ（S3）へ永続コピーし、materialImageUrl / backgroundImageUrl に
+直接書ける永続 https URL を返す。期限のない公開 https URL はそのまま書いてよい（取り込み不要）。
+
+```text
+// MCP
+{ "urls": ["https://dalle-output.example.com/tmp/abc123.png"], "type": "material" }
+
+// REST
+POST /api/v1/assets/import
+{ "urls": ["https://..."], "type": "background" }
+```
+
+- **形式**: png / jpeg / webp・1件最大 10MB
+- **件数**: 最大 20件/回
+- **スコープ**: `projects:write`
+- **クレジット消費**: 0
+- 失敗した URL は他に影響しない（結果は件ごとに `ok` / `error` で返る）
+- 成功した `url` を行の `materialImageUrl` または動画全体の `backgroundImageUrl` に渡す
+
 ## 注意
 
 - **音声はこちらで合成する。** 相手側に YMM4 や VOICEVOX を入れてもらう必要はない。
@@ -826,6 +865,10 @@ MCP のツール定義と openapi は同じ集合を公開している。片方�
 - 機械可読な定義: `https://app.yukkurigen.com/openapi.json`
 
 ## 変更履歴
+
+- **2026-09-27**: `import_images`（`POST /api/v1/assets/import`）を追加。
+  URL リストから画像を S3 へ取り込み、materialImageUrl / backgroundImageUrl に使える
+  永続 URL を返す。SSRF 対策あり（DNS 解決 + リダイレクト再確認）。クレジット消費なし。
 
 - **2026-09-26**: 利用者の自作キャラ（PSD 取り込み）を `list_characters` に `custom: true` で返し、
   その `id` を `speaker` に使えるようにした（一座は東北勢）。東北式の画面で枠の無い話者（春日部つむぎ・

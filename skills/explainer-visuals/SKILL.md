@@ -33,7 +33,7 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4
 
 ## 知っておくこと
 
-- 図解や写真が出ている間、横長ではキャラは少し外側へ寄って画面を空ける（`materialBox` が画面全体 `{x:0,y:0,width:100,height:100}` の行は寄らず、キャラは素材の後ろ）
+- 図解や写真が出ている間、横長ではキャラは少し外側へ寄って画面を空ける（`materialBox` が画面全体 `{x:0,y:0,width:100,height:100}` の行は寄らず、キャラは素材の後ろ）。全画面素材だけの動画でキャラを常に定位置に固定したいときは `update_template_layout` で `{"keepCharactersInPlace":true}` を設定する
 - `title`: 横長は左上に出るが、**章の見出しが1つでもあると左上は章になり、タイトルは最初の章より前の行だけ**。
   縦型は画面の上にずっと出る。`titleTelop: false` でどちらも消える
 - カードと写真は、**共有リンクを作るとき（`create_preview_link`）か焼くとき**に画像になり、行の素材に入る（それまでは共有リンクにも出ない）

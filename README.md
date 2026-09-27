@@ -13,6 +13,8 @@
   → MP4 の URL が返る
 あなた「3行目をもっと驚いた感じに」
   → AI が update_lines でその行だけ直す（喋る速さは render_mp4 の voicePlaybackRate で焼き直す）
+あなた「3行目の後ろに1行追加して」
+  → AI が insert_lines で行を挿入し、generate_audio で音声を作ってから render_mp4 を呼ぶ
 ```
 
 直すのもこのサイトではなく、AI との会話で行う。
@@ -213,6 +215,11 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 作り始めた件と投げ直してよい件（`resendIndexes`）が分かれて入るので、その件だけを新しい
 `idempotencyKeyPrefix` の新しいバッチで送る。同じ prefix で全件を投げ直しても作り始めた件が二重に
 作られないのは、その件のジョブが終わってから 24 時間以内だけ（期限は `partialResults.fullResendSafeUntil`）。
+
+画像を取り込むには `POST /api/v1/assets/import`（MCP は `import_images`）。
+URL リストから画像を S3 へコピーし、materialImageUrl / backgroundImageUrl に使える
+永続 URL を返す。期限付きの画像生成サービス出力など、再リクエストで変わる URL を
+動画に使うときに使う。クレジット消費なし。
 
 全項目の定義: https://app.yukkurigen.com/openapi.json
 
