@@ -6,16 +6,16 @@ description: ゆっくり解説・ずんだもん解説の動画（MP4）を Yuk
 # ゆっくり解説・ずんだもん解説の動画を1本作る
 
 台本（話者＋セリフの配列）を YukkuriGen に渡すと、音声・字幕・立ち絵・BGM・効果音を入れた **MP4** が返る。
-**台本はあなた（AI）が書く。** YukkuriGen のサーバは AI を呼ばない。
+**台本はあなた（AI）が書く。** 台本はサーバで生成しない（LLM は呼ばない）。
 
 作例（霊夢・魔理沙、AI が書いた台本をそのまま焼いたもの）:
 https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4
 
 ## つなぐ
 
-- MCP: `https://app.yukkurigen.com/api/mcp`。OAuth に対応したクライアント（Claude・ChatGPT のコネクタ、Claude Code のプラグイン）は、許可画面で「許可する」を押すだけ。鍵は要らない
+- MCP: `https://app.yukkurigen.com/api/mcp`。OAuth に対応したクライアント（Claude・ChatGPT のコネクタ、Claude Code のプラグイン、VS Code）は、許可画面で「許可する」を押すだけ。鍵は要らない（VS Code は 2026-10-05 に VS Code 1.139 で確認。Cursor などほかのエディタは実機では未確認で、つながらなければ鍵で使う）
 - 鍵で使う場合: 利用者に `https://app.yukkurigen.com/settings/api-keys` で発行してもらい、`Authorization: Bearer <KEY>` を付ける
-- 無料プランでも、台本づくり・直し・音声づくり・共有リンク・1クレジットのプレビューまで使える。本番の MP4（動画1分につき1クレジット、端数切り上げ）は有料プラン
+- 無料プランでも、台本づくり・直し・音声づくり・共有リンクまで使える（すべて0クレジット）。本番の MP4（動画1分につき1クレジット、端数切り上げ）はクレジットパック（買い切り・無料プランのままでも買える）か有料プラン
 
 ## 手順
 
@@ -24,10 +24,10 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4
    - 東北: `zundamon`, `metan`, `tsumugi`, `anko`（声は VOICEVOX。立ち絵は 2.5D で動く）
    - 利用者が取り込んだ自作キャラ（`custom: true` の `id`）は東北と一緒に出せる
    - 混ぜると `400 cast_mismatch`（課金なし）
-2. **台本を書く**: `{ "speaker": "zundamon", "text": "…" }` を並べる。1行40文字前後まで。掛け合いにする
+2. **台本を書く**: `{ "speaker": "zundamon", "text": "…" }` を並べる。1行40文字前後が読みやすい（60文字までは字幕が普通の大きさで収まり、それを超えると縮む）。掛け合いにする
    - 最初の3行で「え、そうなの？」と思わせる引き → 章ごとに1つの話題 → おさらい → 締めの一言
-   - 読み間違えそうな語は `reading`（ひらがな）を付ける
-3. **まず安く試す**: `create_yukkuri_video` に `output: "preview"`（1クレジット・640×360・20秒）
+   - 読み間違えそうな語はルビを書く: `｜今日《こんにち》は`（字幕は漢字、声はよみ）。何度も出る人名・用語は `set_pronunciation` で辞書へ。`draft` で作ったら `check_readings` でエンジンが実際に読む音を確かめてから音声を作る（行全体を読み替える `reading` はルビで足りないときだけ）
+3. **まず見せる**: `create_yukkuri_video` に `output: "draft"` → `create_preview_link` の共有リンク（0クレジット・全編・音つき）
 4. **本番**: `output` を付けない（既定 `mp4`、動画1分につき1クレジット）。**`idempotencyKey` を必ず付ける**（応答を落としても同じ鍵で投げ直せば二重に払わない）
 5. **受け取る**: MCP は数秒で `jobId` を返す → `get_job` が `succeeded` になったら `result.renderId` → `get_render` で `done === true` かつ `outputFile` が非空になるまで待つ
 6. `outputFile`（MP4 の URL）と、概要欄に貼るクレジット（`credits`）を利用者に渡す。VOICEVOX の声は「VOICEVOX:ずんだもん」の表記が規約の条件なので、クレジットは必ず概要欄に入れてもらう
@@ -44,7 +44,7 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4
 
 ## よくある失敗
 
-- `402 plan_required` / `insufficient_credits`: 会話を終わらせない。応答の `purchase.priceKey` を `create_checkout` に渡し、返った URL を金額と一緒に伝える
+- `402 plan_required` / `insufficient_credits`: 会話を終わらせない。応答の `purchase.priceKey` を `create_checkout` に渡し、返った URL を金額と一緒に伝える。無料プランで MP4 の `plan_required` には `alternative`（いちばん小さいクレジットパック・買い切り）も付く——利用者が月額を望まなければそちらを渡す
 - `409 missing_audio`: `render_mp4` の前に `generate_audio` が要る（`create_yukkuri_video` は自分で作るので不要）
 - 演出（図解・表情・2.5D の掛け合い・縦型・量産）は、それぞれのスキルを見る
 - 全部の仕様: https://github.com/yukkurigen/yukkurigen-mcp/blob/main/SKILL.md

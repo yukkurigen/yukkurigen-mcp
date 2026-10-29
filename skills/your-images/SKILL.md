@@ -18,7 +18,7 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4
 ```
 
 - 図解カード（`card`）や写真（`photo`）より優先される
-- 画像が出ている間、キャラは少し外側へ寄って画面を空ける
+- 画像が出ている間、キャラは少し外側へ寄って画面を空ける（全画面の素材の行は寄らない。下の `materialBox`）
 
 ## 位置と大きさ `materialBox`（あなたが決める）
 
@@ -33,6 +33,8 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4
   中央に小さく `{x:35,y:8,width:30,height:35}` / 大きく `{x:20,y:3,width:60,height:68}`
 - 値の範囲: x・y は -50〜100、width・height は 0 より大きく 150 まで（外れると 400）
 - 縦型: y は 16 以上・y+height は 48 以下（タイトルと顔を避ける）
+- 画面全体を覆うなら `{x:0,y:0,width:100,height:100}`（16:9 の画像で画面いっぱい）。この行ではキャラは寄らず元の位置のまま、
+  素材の後ろに隠れる
 - 字幕（下の約15%）と話者の顔にかからない所を選ぶ。同じ画像を続けて出す行は同じ値にする
 - あとから動かす: `update_lines` に `{"index":3,"materialBox":{...}}`（`null` でテンプレートの枠に戻す）
 
@@ -41,8 +43,32 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4
 - 動画全体の背景: `create_yukkuri_video` の `backgroundImageUrl`（https の画像か動画）。省略すると室内のイラスト
 - 場面転換: その行の `backgroundImageUrl`。**以降の行へ引き継がれる**
 
+## 期限付き URL の永続化（`import_images`）
+
+画像生成サービスの出力 URL など、**期限が切れる URL** を materialImageUrl に使いたいときは
+`import_images` で YukkuriGen のストレージへ取り込む。返ってきた永続 URL を代わりに使う。
+
+```json
+{ "urls": ["https://dalle-output.example.com/tmp/abc123.png"], "type": "material" }
+```
+
+- png / jpeg / webp・1件最大 10MB・最大 20件/回
+- クレジット消費なし
+- 期限の切れない公開 https URL はそのまま materialImageUrl に書いてよい（取り込み不要）
+
+## 利用者の PC にある画像（`create_image_upload` / `upload_image`）
+
+ComfyUI などで作った画像やスクショがファイルとして手元にあるときは、`import_images` では渡せない。
+
+- **シェル（curl / PowerShell）を実行できる**: `create_image_upload`（fileName・mimeType・fileSize＝バイト数ちょうど）→
+  返ったコマンド例で `uploadUrl` へ PUT（Content-Type は mimeType と同じ値）→ `confirm_image_upload` に `key` を渡す。
+  最大 10MB。URL の期限は1時間。PUT しただけでは使えない
+- **シェルが無い**（ファイルの中身は読める）: `upload_image` に base64 で渡す。デコード後 8MB まで。ただし base64 は
+  引数として書き出すので、実際に渡せるのは小さい画像（目安は数百KB まで）
+- どちらも返る `url` を `materialImageUrl` / `backgroundImageUrl` に書く。クレジット消費なし（容量はストレージに数える）
+
 ## 注意
 
 - **https のみ**。内部アドレスや http は 400（課金なし）で断る
-- 画像はレンダーのときに取りに行くので、**ログインが要る URL や期限の短い URL は使わない**
+- 画像はレンダーのときに取りに行くので、**ログインが要る URL や期限の短い URL は `import_images` で取り込むこと**
 - 利用者の画像の権利（使ってよいか）は利用者に確認する

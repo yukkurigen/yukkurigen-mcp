@@ -7,7 +7,7 @@ description: YouTube ショート・TikTok 向けの縦型（9:16）ゆっくり
 
 `create_yukkuri_video` に **`platform: "shorts"`**（または `"tiktok"`）を渡すだけで縦型になる。既定は `youtube`（横型）。
 向きは**プロジェクトに残る**ので、draft のあとや直したあとの `render_mp4` は `platform` を省いても縦型で焼かれる
-（`get_project` の `platform` で確かめられる）。1クレジットのプレビューと共有リンクも縦型で描かれる。
+（`get_project` の `platform` で確かめられる）。共有リンクも縦型で描かれる。
 
 作例（ずんだもん・四国めたん「ペットボトルを満タンで凍らせない理由」8行）:
 https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/vertical-shorts.mp4
