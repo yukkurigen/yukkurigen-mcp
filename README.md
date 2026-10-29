@@ -1,8 +1,8 @@
 # YukkuriGen — AI から使う「ゆっくり解説」動画生成
 
 台本（話者＋セリフの配列）を渡すと、**MP4** が返る。こちらで音声を合成してから
-本番レンダーを開始する（動画1分につき1クレジット・有料プラン）。`output:"preview"` なら
-1クレジット・低解像度・20秒で、**無料プランでも動くものが見られる**。
+本番レンダーを開始する（動画1分につき1クレジット。クレジットパックか有料プランで）。焼く前は共有リンク
+（`create_preview_link`）で、**無料プランでも全編を音つきで見られる**（0クレジット）。
 人が編集画面で作ることは想定していない——**あなたが自分の AI に頼み、その AI が
 ここを呼ぶ。**
 
@@ -12,7 +12,9 @@
   → AI が get_job で音声合成とレンダー開始を待ち、get_render で MP4 の完成を待つ
   → MP4 の URL が返る
 あなた「3行目をもっと驚いた感じに」
-  → AI が update_lines でその行だけ直す（喋る速さは render_mp4 の voicePlaybackRate で焼き直す）
+  → AI が update_lines でその行だけ直す（その行の喋る速さ・高さは voice、動画全体の速さは update_project_settings の voicePlaybackRate。既定 1.1）
+あなた「3行目の後ろに1行追加して」
+  → AI が insert_lines で行を挿入し、generate_audio で音声を作ってから render_mp4 を呼ぶ
 ```
 
 直すのもこのサイトではなく、AI との会話で行う。
@@ -52,7 +54,7 @@ AI は台本の行に、たとえば次のように演出も書いて `create_yu
  "card":{"title":"安くできる3つの理由","style":"steps","items":["豆をまとめて大量仕入れ","ボタンひとつで自動抽出","お客さんのセルフ式"],"span":4},
  "emotion":"smug","pose":"hip"}
 {"speaker":"metan","text":"味は大丈夫なのかしら？","photo":["coffee beans","coffee"],"emotion":"troubled","pose":"hold"}
-{"speaker":"metan","text":"えっ、儲からなくてもいいってこと！？","emotion":"shocked","pose":"mouth_cover","cameraMode":"dynamic"}
+{"speaker":"metan","text":"えっ、儲からなくてもいいってこと！？","emotion":"shocked","pose":"mouth_cover","cameraMode":"dynamic","action":"jump"}
 ```
 
 `get_render` で完成した MP4 の URL と、
@@ -75,7 +77,7 @@ VOICEVOX の音声は「VOICEVOX:キャラ名」の表記が利用条件。動�
 
 ### 機能ごとの作例とスキル
 
-[`skills/`](./skills) に、機能ごとのスキル（AI 向けの手順書）が10本ある。Claude Code ならプラグインとしてまとめて入る（下の「つなぐ」）。
+[`skills/`](./skills) に、機能ごとのスキル（AI 向けの手順書）が11本ある。Claude Code ならプラグインとしてまとめて入る（下の「つなぐ」）。
 作例は、どれも AI（Claude）が MCP で作って焼いたものをそのまま載せている（2026-09-26）。
 
 | スキル | できること | 作例 |
@@ -83,15 +85,16 @@ VOICEVOX の音声は「VOICEVOX:キャラ名」の表記が利用条件。動�
 | [yukkuri-video-basics](skills/yukkuri-video-basics/SKILL.md) | 台本から1本作る（霊夢・魔理沙） | [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/yukkuri.mp4) |
 | [dialogue-25d](skills/dialogue-25d/SKILL.md) | ずんだもん×あんこもんの掛け合い。立ち絵が 2.5D で呼吸し、体・しっぽ・頭の飾りが揺れる | ![](samples/dialogue-25d.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/dialogue-25d.mp4) |
 | [explainer-visuals](skills/explainer-visuals/SKILL.md) | 図解カード・写真・章の見出し・強調テロップ | ![](samples/zunda.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4) |
+| [scene-direction](skills/scene-direction/SKILL.md) | ゲストの途中登場・退場、キャラの立ち位置・大きさ・向き（1人で真ん中・左右の入れ替え）、キャラの動き（跳ぶ・ぴょんぴょん・震える・お辞儀・振り向く・ずっこける・はしゃぐ）、背景のゆっくりした寄り・引き・パン、暗転、章の頭の全画面タイトル（行に書くだけ） | — |
 | [expressions-poses](skills/expressions-poses/SKILL.md) | 表情16種・腕のポーズを行ごとに | [一覧（画像）](samples/expressions.jpg) |
 | [vertical-shorts](skills/vertical-shorts/SKILL.md) | 縦型ショート（9:16）。上にタイトル・素材、下にキャラ2人・字幕 | ![](samples/vertical-shorts.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/vertical-shorts.mp4) |
 | [your-images](skills/your-images/SKILL.md) | 自分の画像を行ごとに好きな位置・大きさで出す／背景を差し替える | ![](samples/your-images.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/your-images.mp4) |
 | [batch-production](skills/batch-production/SKILL.md) | 最大20本を1回でまとめて作る | [3本の例（画像）](samples/batch.jpg) |
 | [review-and-fix](skills/review-and-fix/SKILL.md) | 焼く前に共有リンクで見せ、指定の行だけ直す（消費なし） | [共有リンクの画面](samples/review-share.jpg) |
-| [own-character](skills/own-character/SKILL.md) | 自分のキャラ（PSD・PNG）を話者にする。画像生成 AI で作ったキャラも PSD にすれば喋る | ![](samples/own-character.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4) [PSD の見本](samples/minamo.psd) |
+| [own-character](skills/own-character/SKILL.md) | 自分のキャラ（PSD・PNG）を話者にする。PNG 1枚なら AI が `create_character` で作れる（例: いらすとやの立ち絵を霊夢の声で）。画像生成 AI で作ったキャラも PSD にすれば喋る | ![](samples/own-character.gif) [MP4](https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4) [PSD の見本](samples/minamo.psd) |
 | [youtube-upload](skills/youtube-upload/SKILL.md) | 焼いた動画を自分の YouTube へ投稿（既定は非公開） | — |
 
-アカウントの無いまま呼ぶと、会員登録（無料・月10クレジット）の URL 付きで `signup_required` が返る。
+アカウントの無いまま呼ぶと、会員登録（無料・月の付与なし）の URL 付きで `signup_required` が返る。
 ChatGPT・claude.ai のコネクタなら、つなぐ時に登録と許可の画面が開く。
 
 ## つなぐ
@@ -108,14 +111,32 @@ YukkuriGen の許可画面が開くので「許可する」を押す（OAuth 2.1
 つないだアプリは https://app.yukkurigen.com/settings/api-keys に「<アプリ名>（OAuth）」として出て、
 そこから取り消せる。
 
+### VS Code
+
+MCP サーバーを種類 HTTP で追加し、URL にこれを入れるだけ。鍵は要らない:
+
+```
+https://app.yukkurigen.com/api/mcp
+```
+
+VS Code が「MCP サーバー定義 … が YukkuriGen に認証しようとしています」と聞くので「許可」を押す。
+ブラウザで YukkuriGen の許可画面（「Visual Studio Code を YukkuriGen につなぎますか？」）が開くので
+「許可する」を押すと、VS Code に鍵が渡り、ツールが一覧に出る（2026-10-05 に VS Code 1.139 で確認）。
+つないだ VS Code は API キーの画面に「Visual Studio Code」（「OAuth で接続」の札付き）として出て、そこから取り消せる。
+
+### Cursor・Windsurf など、ほかのエディタ
+
+同じ URL を鍵なしで入れてつながるかは、**実機では確かめていない**。試してつながらなければ、
+下の「鍵をヘッダーで渡すクライアント」と「その他の MCP クライアント」の方法でつなぐ（こちらは従来どおり使える）。
+
 ### 鍵をヘッダーで渡すクライアント
 
-まず鍵を取る（無料・月10クレジット）:
+まず鍵を取る（無料・月の付与なし）:
 https://app.yukkurigen.com/settings/api-keys
 
 ### Claude Code
 
-プラグインとして入れると、MCP サーバの接続と機能ごとのスキル10本がまとめて入る（接続はブラウザでの許可）:
+プラグインとして入れると、MCP サーバの接続と機能ごとのスキル11本がまとめて入る（接続はブラウザでの許可）:
 
 ```
 /plugin marketplace add yukkurigen/yukkurigen-mcp
@@ -214,6 +235,37 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 `idempotencyKeyPrefix` の新しいバッチで送る。同じ prefix で全件を投げ直しても作り始めた件が二重に
 作られないのは、その件のジョブが終わってから 24 時間以内だけ（期限は `partialResults.fullResendSafeUntil`）。
 
+画像を取り込むには `POST /api/v1/assets/import`（MCP は `import_images`）。
+URL リストから画像を S3 へコピーし、materialImageUrl / backgroundImageUrl に使える
+永続 URL を返す。期限付きの画像生成サービス出力など、再リクエストで変わる URL を
+動画に使うときに使う。クレジット消費なし。
+
+利用者の PC にある画像（ComfyUI などで作ったもの）は、シェルを実行できる AI なら
+`POST /api/v1/assets/image-uploads`（MCP は `create_image_upload`）で署名付き URL を出して PUT し、
+`POST /api/v1/assets/image-uploads/confirm`（`confirm_image_upload`）で確定する（最大 10MB）。
+シェルが無ければ `POST /api/v1/assets/image-uploads/inline`（`upload_image`）に base64 で渡す
+（デコード後 8MB まで）。返る URL は取り込みと同じ扱い。クレジット消費なし。
+
+BGM と効果音は行ごとに決められる。行の `bgm` に組み込みの曲の名前（`GET /api/v1/audio-library`、MCP は `list_bgm`）・
+利用者が上げた音の url・`"none"`（止める）を書くと、その行から次に `bgm` を書いた行まで流れる。行の `effect` には
+組み込みの効果音の名前か上げた音の url。手元の音（mp3 / wav / ogg。BGM 30MB・効果音 5MB）は
+`POST /api/v1/assets/audio-uploads`（`create_audio_upload`）→ PUT → `POST /api/v1/assets/audio-uploads/confirm`
+（`confirm_audio_upload`）、シェルが無ければ `POST /api/v1/assets/audio-uploads/inline`（`upload_audio`）。
+上げた音を使ってよいかは利用者の責任。話している間だけ BGM を下げるダッキングは、テンプレートの `bgm.ducking`
+（`update_template_style`）か `PATCH /api/v1/projects/{id}/settings` の `bgmDucking`（既定は切）。クレジット消費なし。
+
+BGM を AI に作らせるなら `POST /api/v1/assets/bgm/generate`（MCP は `generate_bgm`）。ACE-Step で1曲（30〜240 秒。
+雰囲気は英語のタグで指定）作り、利用者の BGM 素材として登録する（上げた音と同じ扱いで、`url` を行の `bgm` に書ける）。
+いつも非同期で、`GET /api/v1/jobs/{jobId}`（`get_job`）の result に永続の `url` と1時間の `downloadUrl` が入る。
+2クレジット（失敗したら返金）。`projectId` を渡しても動画の BGM は変えない（`applyToProject: true` のときだけ変える）。
+ACE-Step はコード・モデルとも Apache License 2.0 で公開されている。作った曲が既存の曲に似ないことは確かめていない
+（使ってよいかの判断は利用者の責任）。
+
+上げた PNG・WebP の画像1枚から、話者にできる自分のキャラを作るには `POST /api/v1/agent/characters`
+（MCP は `create_character`）。声は `GET /api/v1/voices`（`list_voices`）の `speakerId` か、組み込みキャラと同じ声の
+`voiceOf`（`reimu` など）。返る `characterId` を `speaker` に書く。直すのは `PATCH /api/v1/agent/characters/{characterId}`
+（`update_character`）。PSD の取り込みと削除は画面だけ。クレジット消費なし。
+
 全項目の定義: https://app.yukkurigen.com/openapi.json
 
 ## AI に読ませるもの
@@ -228,10 +280,11 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 | | クレジット | 無料枠で |
 |---|---|---|
 | 台本を作る・読む・直す・音声を作る | 0 | ○ |
-| MP4 プレビュー（低解像度・指定行の周辺だけ） | 1 | ○（月10回） |
-| MP4 本番レンダー | 5 | × 有料プラン |
+| 共有リンクで確認（全編・音つき・ログイン不要） | 0 | ○ |
+| 読みを確かめる（`check_readings`。エンジンが実際に読む音）・読みの辞書（`set_pronunciation`） | 0 | ○ |
+| MP4 本番レンダー | 動画1分につき1（端数切り上げ） | △ クレジットパック（買い切り・無料プランのままでも買える）か有料プラン |
 
-無料枠は月10クレジット。402 を受けたら `create_checkout` で決済リンクを出せる
+月のクレジットはスタンダード100・プロ300（MP4 なら100分・300分）。クレジットパックは50・150・500（買い切り・期限なし）。402 を受けたら `create_checkout` で決済リンクを出せる
 ——会話を止めずに購入まで進める。
 
 同時に走らせられるレンダーはプランごとに上限がある（無料1 / スタンダード3 /
@@ -241,12 +294,12 @@ curl -X POST https://app.yukkurigen.com/api/v1/agent/generate \
 
 - **`create_yukkuri_video`（ジョブで受け付ける形）から MP4 までは、2026-09-25 に本番で通した**
   （OAuth で接続 → `create_yukkuri_video` → `get_job` → `get_render` の完成まで。上の作例がその出力）。
-  まとめて作るバッチ（`create_yukkuri_videos_batch`）は 2026-09-26 に本番で**プレビュー出力（1クレジット）の3本**を最後まで通した。**MP4 出力のバッチは本番未検証**（本番で最後まで通した実績はまだ無い）。
+  まとめて作るバッチ（`create_yukkuri_videos_batch`）は 2026-09-26 に本番で**プレビュー出力（当時あった1クレジットの低解像度 MP4。2026-09-27 に廃止）の3本**を最後まで通した。**MP4 出力のバッチは本番未検証**（本番で最後まで通した実績はまだ無い）。
   初めての形の台本は少数の行で試してほしい。途中で止まる場合は段ごとに切り分けられる
   （`get_project` → `generate_audio` → `render_mp4`）。不具合として報告してほしい。
-- **こちらのサーバは AI（LLM）を呼ばない。** 台本・図解・写真の検索語・章・強調を決めるのは、
+- **台本はこちらのサーバで生成しない（LLM は呼ばない）。** 台本・図解・写真の検索語・章・強調を決めるのは、
   あなたが使っている AI（ChatGPT・Claude などのあなたのサブスク）。こちらは音声合成・画像化・写真の検索
-  （Openverse の CC0・パブリックドメインのみ）・レンダーだけを行う。指定の無い行には図解や写真は出ない。
+  （Openverse の CC0・パブリックドメインのみ）・BGM の生成（`generate_bgm`）・レンダーだけを行う。指定の無い行には図解や写真は出ない。
 - **`.ymmp`（YMM4 プロジェクト）の書き出しは 2026-09-07 に撤去した。** 音声も
   立ち絵も相手の YMM4 が作る形で、こちらの音声合成を一度も通らなかった——
   代替が容易なわりに、保守する面だけが増えていた。MP4 一本にした。

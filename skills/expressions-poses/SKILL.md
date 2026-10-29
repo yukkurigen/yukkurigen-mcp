@@ -37,11 +37,17 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/expressions.jpg
 
 - `cameraMode`（**任意。入れなくてよい**）: `"dynamic"` でその行のカメラが話者に寄る。使うなら**2〜4回まで**（全行だと効かない）。`"summary"` は立ち絵を消す、`null` は寄らない
   - 寄りを一切入れたくないときは、どれか1行に `"cameraMode": null` と書く（自動が止まる）。作った後なら `update_lines` で寄っている行を `null` にする
-- `effect`: 行の頭の効果音（例 `"ショック1"` `"きらーん1"` `"ひらめく1"` `"チーン1"`）
+- `camera`（**任意**。その行だけ）: 寄る先を**画面の真ん中に持ってきて**寄る。`{"target":"<キャラの id>","zoom":2}` のように書く。
+  キャラは動かさず場面ごとカメラが動く（離れて立つもう1人は画面の外へ出る）。`zoom` 1〜2.5、`target` は `"speaker"`（既定）・キャラの id・`{x, y}`、
+  `move` は `cut` / `ease`（既定）/ `slow`、`shake` は `true` / `"strong"`、`materials` は素材も一緒に寄せる `"zoom"` / 止める `"fixed"`。
+  リアクション・オチ・驚きの行だけに（10行に1〜2行）。真ん中に映すために `stage` の `x:50` で立ち位置を動かさない。詳しくは skill.md の「行ごとのカメラ」
+- `effect`: 行の頭の効果音（例 `"ショック1"` `"きらーん1"` `"ひらめく1"` `"チーン1"`。一覧は `list_bgm`）。利用者が上げた
+  効果音の url も書ける（`create_audio_upload` → `confirm_audio_upload` / `upload_audio`）
+- `bgm`: その行から流す BGM（組み込みの曲の名前・上げた音の url・`"none"` で止める。次に書いた行まで引き継ぐ）
 
 ## 自動と手書き
 
-`emotion`・`pose`・`effect`・`cameraMode` は、**1行も書かなければセリフから自動で付く**
+`emotion`・`pose`・`effect`・`cameraMode` は、**1行も書かなければセリフから自動で付く**（`cameraMode` の自動は `camera` を1行でも書くと付かない）
 （「うぅ」→泣き、「どうしよう」→困り、「一つ目」→指さし など）。1行でも書いた項目は、書いた指定だけが使われる。
 `null` で「書いた」に数えられるのは `cameraMode` と `effect` だけ（`emotion`・`pose` に `null` は書けない。止めたいならどれか1行に値を書く）。
 自動で付くのは**作るときの1回だけ**。作った後に `update_lines` で変えた指定が付け直されることはない。

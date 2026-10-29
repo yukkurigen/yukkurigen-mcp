@@ -1,12 +1,42 @@
 ---
 name: own-character
-description: 利用者が用意した立ち絵（PSD・PNG の部品）を取り込んで、そのキャラに喋らせる動画を作る。「自分のキャラで」「このPSDの立ち絵で」「オリジナルキャラで解説動画」と頼まれたときに使う。
+description: 利用者が用意した立ち絵（PNG 1枚、または PSD）を自分のキャラにして、そのキャラに喋らせる動画を作る。「自分のキャラで」「この画像を霊夢の声で喋らせて」「このPSDの立ち絵で」「オリジナルキャラで解説動画」と頼まれたときに使う。
 ---
 
-# 自分のキャラ（PSD 取り込み）で動画を作る
+# 自分のキャラ（PNG・PSD）で動画を作る
 
-PSD の取り込みは**利用者が画面で行う**（PSD は利用者のブラウザの中で分解し、ファイルそのものはサーバに送らない）。
-取り込んだあとは、あなたが `speaker` にそのキャラの `id` を書くだけで話者になる。
+- **PNG・WebP の画像1枚なら、あなたが作れる**（`create_character`。下の「画像1枚から作る」）
+- **PSD の取り込みは利用者が画面で行う**（PSD は利用者のブラウザの中で分解し、ファイルそのものはサーバに送らない）
+
+どちらも、できたキャラの `id` を `speaker` に書くだけで話者になる。
+
+## 画像1枚から作る（あなたがすること）
+
+「このいらすとやの PNG を、霊夢の声で喋らせて」のような頼みはこれで叶う。
+
+1. 画像を上げる: 手元のファイルなら `upload_image`（シェルがあれば `create_image_upload` → PUT → `confirm_image_upload`）、
+   https の URL なら `import_images`（→ `your-images`）。返った `url` を使う
+2. `create_character` に `name`・`imageUrl`・声を渡す。声は `voiceOf`（組み込みキャラと同じ声: `reimu` `marisa` `zundamon` `metan` `tsumugi` `anko`）か、
+   `list_voices` の `speakerId`（霊夢のゆっくり声は AquesTalk の `1001`）。全身の絵なら `figure: "full"`（字幕の上に収める）
+3. 返った `characterId` を `speaker` に書く。東北のキャラ（ずんだもん等）とは一緒に出せる。ゆっくり（霊夢・魔理沙）の立ち絵とは、声が霊夢でも混ぜられない
+4. 表情ごとの差分の画像（同じ構図・同じ大きさ）があれば、上げて `emotionImages`（`joy`・`sad` など16種）に渡せる。後から `update_character` でも足せる
+
+```text
+create_character { "name": "れいむ（いらすとや）", "imageUrl": "<upload_image の url>", "voiceOf": "reimu", "figure": "full" }
+→ characterId
+```
+
+- 使えるのは**この利用者が YukkuriGen に上げた画像だけ**（png / webp・10MB まで。背景が透明な画像を使う）
+- 立ち絵の画像はキャラ用に複製して、ストレージ容量に数える。クレジットは使わない
+- 直すのは `update_character`（名前・声・表情ごとの画像・立ち絵の種類・声の既定の速さと高さ `voice`・顔の位置 `face`・大きさ `defaultScale`）。消すのは画面から
+- 「部長はゆっくり低めに」は `voice: {"speed":0.9,"pitch":-0.05}`（`create_character` でも書ける）。このキャラの全行に効き、行の `voice` とは速さが掛け算・高さが足し算。変えると作り済みの音声は `staleAudio` に出るので、`generate_audio`（引数なし）で作り直す
+- **顔の位置 `face`**: カメラが話者に寄る（行の `camera`・`cameraMode:"dynamic"`）ときに画面の真ん中に持ってくる所。
+  立ち絵の絵の中の割合（`{"x":0.5,"y":0.2}`。左上 0,0・右下 1,1。目の上端と口の下端の真ん中あたり）。
+  `create_character` は省略すると絵から推し量って保存し、返す。**寄った画で顔が真ん中より下なら `y` を大きく、上なら小さく**直す
+- **大きさ `defaultScale`**（0.5〜2。既定 1）: 周りのキャラより小さく・大きく見える絵をそろえる（足元を支点に）
+- **使う画像の利用規約（動画での利用・加工ができるか）は、利用者が確認すること**
+
+## PSD から取り込む
 
 作例（画像生成 AI で作ったオリジナルキャラ「ミナモ」を PSD にして取り込み、ずんだもんと掛け合い。声は冥鳴ひまり）:
 https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4
@@ -14,10 +44,10 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4
 - 取り込んだ PSD（層の名前の見本。そのまま取り込んで試せる）: https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/minamo.psd
 - 表情の部品: https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character-parts.jpg
 
-## 利用者にしてもらうこと（1回だけ）
+### 利用者にしてもらうこと（1回だけ）
 
-1. `https://app.yukkurigen.com/templates` → テンプレートを開く → 左の **「キャラクター」** → **「PSD を取り込む」**
-   （PNG 1枚なら「画像を追加」）
+1. `https://app.yukkurigen.com/assets`（自分のキャラ）→ **「PSD を取り込む」**
+   （PNG 1枚なら、画面の「画像を追加」でも、上の `create_character` でもよい）
 2. PSD を選ぶと、名前と声を決めて「取り込む」。部品の名前から次を自動で組む:
    - 表情16種（目・口・眉の選択肢の名前から）、まばたき（「閉じ」「ーー」など）
    - 口パク: 口の「あ」「い」…の名前、またはちゃこ式の ▽・△ から、**母音ごとの口**
@@ -25,9 +55,9 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4
 3. 足りない表情・口・ポーズは、キャラ設定で選び直せる（動く口パクの見本が出る）
 4. **取り込む立ち絵の利用規約（動画での利用・加工ができるか）は、利用者が確認すること**
 
-## あなたがすること
+### あなたがすること
 
-1. `list_characters` で `custom: true` のキャラを探す。`id`（20文字の英数字）、`emotions`、`poses` が返る
+1. `list_characters` で `custom: true` のキャラを探す。`id`（20文字の英数字）、`kind`（`psd` / `png`）、`voice`、`emotions`、`poses` が返る
 2. その `id` を `speaker` に書く。東北のキャラ（ずんだもん等）とは同じ動画に出せる。ゆっくり（霊夢・魔理沙）とは混ぜられない。
    作ったあとで `update_lines` の `speaker` を自作キャラに替えることもできる（ゆっくりのテンプレートの動画では `cast_mismatch` で断られる）
 3. `emotion` / `pose` は、そのキャラに設定済みのものが効く。無い表情を書いても近い表情か通常の顔で描かれる
@@ -37,12 +67,13 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4
 {"speaker":"<list_characters の custom:true の id>","text":"今日はわたしが案内するね。","emotion":"joy","pose":"wave"}
 ```
 
-## 知っておくこと
+### 知っておくこと
 
-- 声は取り込むときに選んだもの（VOICEVOX・AquesTalk）。AquesTalk の声でも口は母音ごとに変わる
+- 声は取り込むときに選んだもの（VOICEVOX・AquesTalk）。AquesTalk の声でも口は母音ごとに変わる。声と名前は `update_character` でも変えられる（表情は画面で）
 - 全身の立ち絵は字幕の上に収まるよう、自動で小さめに置く（キャラ設定の「立ち絵の種類」で変えられる）
+- カメラが寄る顔の位置は、PSD は目と口の部品の範囲から描くたびに推し量る。外れていたら `update_character` の `face` で決められる（PSD のキャラでも直せる）
 
-## PSD の層の名前（この名前なら自動で組まれる）
+### PSD の層の名前（この名前なら自動で組まれる）
 
 見本の `minamo.psd` の構成:
 
@@ -54,7 +85,7 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/own-character.mp4
 
 目と口の差分の名前から表情が組まれる（ミナモは14種）。足りない表情はキャラ設定で選び直せる。
 
-## 画像生成 AI でキャラから作るとき
+### 画像生成 AI でキャラから作るとき
 
 作例のミナモはこの手順で作った:
 

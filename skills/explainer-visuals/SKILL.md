@@ -14,10 +14,10 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4
 
 | 項目 | 何が出るか | 目安 |
 |---|---|---|
-| `chapter` | 横長の画面左上の章の見出し（14文字以内）。次の章まで出る。縦型では出ない | 8行に1つ。タイトルを冒頭に見せるなら最初の章は2〜3行目 |
+| `chapter` | 横長の画面左上の章の見出し（14文字以内が目安。30文字まで受け付け、16文字を超えた分は黙って切る）。次の章まで出る。縦型では出ない | 8行に1つ。タイトルを冒頭に見せるなら最初の章は2〜3行目 |
 | `card` | 図解カード `{title, items, style, span}`。`style`: `list` / `steps` / `point` | 7行に1枚、最大6枚 |
 | `photo` | 写真の**英語の**検索語 1〜3個。具体的な物から順に、最後は1語 | 4行に1枚 |
-| `emphasis` | 中央の強調テロップ（10文字以内）。`{text, color}` で色（yellow / red / blue / green） | 6行に1つ。素材・図解カードが出ている行では出ない |
+| `emphasis` | 中央の強調テロップ（10文字以内が目安。30文字まで受け付け、12文字を超えた分は黙って切る）。`{text, color}` で色（yellow / red / blue / green）。`position`（top / center / bottom）か `x`・`y`（中心。画面の %）で出す場所をその行だけ変えられる | 6行に1つ。素材・図解カードが出ている行では出ない |
 
 - カードの項目は**台本にある事実だけ**を、短い体言止めで
 - 写真は Openverse の CC0・パブリックドメインから探す。抽象語（taste, morning 等）は見つからない
@@ -33,9 +33,9 @@ https://github.com/yukkurigen/yukkurigen-mcp/raw/main/samples/zunda.mp4
 
 ## 知っておくこと
 
-- 図解や写真が出ている間、横長ではキャラは少し外側へ寄って画面を空ける
+- 図解や写真が出ている間、横長ではキャラは少し外側へ寄って画面を空ける（`materialBox` が画面全体 `{x:0,y:0,width:100,height:100}` の行は寄らず、キャラは素材の後ろ）。全画面素材だけの動画でキャラを常に定位置に固定したいときは `update_template_layout` で `{"keepCharactersInPlace":true}` を設定する
 - `title`: 横長は左上に出るが、**章の見出しが1つでもあると左上は章になり、タイトルは最初の章より前の行だけ**。
   縦型は画面の上にずっと出る。`titleTelop: false` でどちらも消える
 - カードと写真は、**共有リンクを作るとき（`create_preview_link`）か焼くとき**に画像になり、行の素材に入る（それまでは共有リンクにも出ない）
-- どれも作ったあとから `update_lines` で足せる・外せる（`chapter` / `emphasis` / `card` / `photo` / `effect`、外すなら `null`）
+- どれも作ったあとから `update_lines` で足せる・外せる（`chapter` / `emphasis` / `card` / `photo` / `effect` / `bgm`、外すなら `null`）
 - 位置を決めたいときは、その行に `materialBox`（→ スキル `your-images`）。card・photo の続く行にも自動で写る
